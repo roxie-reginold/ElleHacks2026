@@ -14,6 +14,9 @@ import dashboardRoutes from './routes/dashboard';
 import profileRoutes from './routes/profile';
 import alertRoutes from './routes/alert';
 import contextCluesRoutes from './routes/contextClues';
+import emotionsRoutes from './routes/emotions';
+import teacherRequestsRoutes from './routes/teacherrequests';
+import affirmationsRoutes from './routes/affirmations';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +33,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/alert', alertRoutes);
 app.use('/api/context-clues', contextCluesRoutes);
+app.use('/api/emotions', emotionsRoutes);
+app.use('/api/teacher-requests', teacherRequestsRoutes);
+app.use('/api/affirmations', affirmationsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
