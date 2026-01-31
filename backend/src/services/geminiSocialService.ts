@@ -1,24 +1,32 @@
 /**
  * Gemini Social Context Analysis Service
  * 
- * Uses Google Gemini to interpret classroom audio context for students
+ * Uses Google Gemini (via OpenRouter) to interpret classroom audio context for students
  * with social anxiety. Acts as the "brain" that interprets the "ears"
  * (ElevenLabs Scribe v2) data.
  * 
  * Documentation References:
- * - Gemini API Overview: https://ai.google.dev/gemini-api/docs
- * - Audio Understanding: https://ai.google.dev/gemini-api/docs/speech-and-audio
- * - JavaScript SDK: https://ai.google.dev/gemini-api/docs/libraries
+ * - OpenRouter API: https://openrouter.ai/docs
+ * - Gemini Models on OpenRouter: https://openrouter.ai/models?q=gemini
  */
 
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 import type { Speaker } from './elevenLabsAudioService';
 
-// Initialize Gemini client
-// Ref: https://ai.google.dev/gemini-api/docs/libraries
-const genai = process.env.GEMINI_API_KEY
-  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+// Initialize OpenRouter client (OpenAI-compatible)
+const openrouter = process.env.OPEN_ROUTER_API_KEY
+  ? new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPEN_ROUTER_API_KEY,
+      defaultHeaders: {
+        'HTTP-Referer': 'https://whisper-lite.app',
+        'X-Title': 'Whisper Lite',
+      },
+    })
   : null;
+
+// OpenRouter model for Gemini
+const GEMINI_MODEL = 'google/gemini-flash-1.5';
 
 // ============================================================================
 // Types
@@ -77,7 +85,7 @@ Provide a JSON response with:
 // ============================================================================
 
 /**
- * Analyze social context of classroom audio using Gemini.
+ * Analyze social context of classroom audio using Gemini via OpenRouter.
  * 
  * Takes transcript and audio events from ElevenLabs Scribe v2 and
  * provides a calming interpretation for students with social anxiety.
@@ -88,16 +96,16 @@ Provide a JSON response with:
 export async function analyzeSocialContext(
   input: ContextAnalysisInput
 ): Promise<SocialContextResult> {
-  if (!genai) {
-    console.log('No Gemini API key, social context analysis unavailable');
+  if (!openrouter) {
+    console.log('No OpenRouter API key, social context analysis unavailable');
     return {
       success: false,
       assessment: 'unknown',
-      summary: 'Analysis unavailable - please configure Gemini API key',
+      summary: 'Analysis unavailable - please configure OpenRouter API key',
       triggers: [],
       confidence: 0,
       recommendations: [],
-      error: 'Gemini API key not configured',
+      error: 'OpenRouter API key not configured',
     };
   }
 
@@ -129,20 +137,19 @@ Provide a calming interpretation. Remember:
 
 Respond in JSON format with: assessment, summary, triggers, confidence, recommendations`;
 
-    // Call Gemini API
-    // Ref: https://ai.google.dev/gemini-api/docs
-    const response = await genai.models.generateContent({
-      model: 'gemini-1.5-pro',  // Pro model - has separate quota from flash models
-      contents: userPrompt,
-      config: {
-        systemInstruction: SOCIAL_CONTEXT_SYSTEM_PROMPT,
-        temperature: 0.3,  // Lower temperature for consistent, calm responses
-        responseMimeType: 'application/json',
-      },
+    // Call Gemini via OpenRouter
+    const response = await openrouter.chat.completions.create({
+      model: GEMINI_MODEL,
+      messages: [
+        { role: 'system', content: SOCIAL_CONTEXT_SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.3,  // Lower temperature for consistent, calm responses
+      response_format: { type: 'json_object' },
     });
 
     // Parse response
-    const responseText = response.text || '{}';
+    const responseText = response.choices[0]?.message?.content || '{}';
     let parsed: any;
     
     try {

@@ -4,27 +4,21 @@ import { useState, useCallback } from "react"
 import { Navigation } from "@/components/ui/Navigation"
 import { BreathingExercise } from "@/components/BreathingExercise"
 import { AudioAnalyzer } from "@/components/AudioAnalyzer"
-import { MoodTracker } from "@/components/MoodTracker"
+import { MoodTracker, type Mood } from "@/components/MoodTracker"
 import { TeacherSignal } from "@/components/TeacherSignal"
-import { CourageClips } from "@/components/CourageClips"
+import { CourageClips, type CourageClip } from "@/components/CourageClips"
 import { WeeklyDashboard } from "@/components/WeeklyDashboard"
 import { ContextClueOverlay } from "@/components/ContextClueOverlay"
+import { useUser } from "@/context/UserContext"
 import { Wind, Sparkles, Heart, MessageCircle, X, Smile, Volume2, Users, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { incrementFocusMoments } from "@/services/api"
 
 interface ContextClue {
   id: string
   message: string
   type: "joke" | "sarcasm" | "tone" | "info"
   suggestion?: string
-}
-
-interface CourageClip {
-  id: string
-  audioUrl: string
-  trigger: string
-  createdAt: Date
-  duration: number
 }
 
 const sampleWeeklyStats = {
@@ -76,17 +70,17 @@ const typeConfig = {
 }
 
 export default function App() {
+  const { user } = useUser()
+  const userId = user?._id || 'demo-user'
+  
   const [activeTab, setActiveTab] = useState("home")
   const [contextClues, setContextClues] = useState<ContextClue[]>([])
   const [currentClue, setCurrentClue] = useState<ContextClue | null>(null)
   const [showBreathing, setShowBreathing] = useState(false)
-  const [todaysMood, setTodaysMood] = useState<"great" | "good" | "okay" | "tough" | "hard" | null>(null)
+  const [todaysMood, setTodaysMood] = useState<Mood | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [stressAlert, setStressAlert] = useState(false)
-  const [courageClips, setCourageClips] = useState<CourageClip[]>([
-    { id: "1", audioUrl: "sample", trigger: "Presentations", createdAt: new Date(), duration: 8 },
-    { id: "2", audioUrl: "sample", trigger: "Group work", createdAt: new Date(), duration: 12 },
-  ])
+  const [courageClips, setCourageClips] = useState<CourageClip[]>([])
 
   const handleContextClue = useCallback((clue: ContextClue) => {
     const clueWithSuggestion = {
@@ -110,34 +104,28 @@ export default function App() {
     setStressAlert(true)
   }, [])
 
-  const handleBreathingComplete = useCallback((_feeling: "calm" | "stressed") => {
+  const handleBreathingComplete = useCallback(async (_feeling: "calm" | "stressed") => {
     setShowBreathing(false)
     setStressAlert(false)
-  }, [])
+    
+    // Increment focus moments when completing breathing exercise
+    try {
+      await incrementFocusMoments(userId)
+    } catch (error) {
+      console.error("Failed to increment focus moments:", error)
+    }
+  }, [userId])
 
-  const handleMoodSelect = useCallback((mood: "great" | "good" | "okay" | "tough" | "hard") => {
+  const handleMoodSelect = useCallback((mood: Mood) => {
     setTodaysMood(mood)
   }, [])
 
   const handleTeacherSignal = useCallback((_type: "question" | "slow" | "help") => {
-    // Handle teacher signal
+    // Teacher signal is now handled by the component itself via API
   }, [])
 
-  const handleSaveClip = useCallback((clip: Omit<CourageClip, "id" | "createdAt">) => {
-    const newClip: CourageClip = {
-      ...clip,
-      id: Date.now().toString(),
-      createdAt: new Date(),
-    }
-    setCourageClips((prev) => [...prev, newClip])
-  }, [])
-
-  const handleDeleteClip = useCallback((id: string) => {
-    setCourageClips((prev) => prev.filter((clip) => clip.id !== id))
-  }, [])
-
-  const handlePlayClip = useCallback((_id: string) => {
-    // Handle clip playback
+  const handleClipsChange = useCallback((clips: CourageClip[]) => {
+    setCourageClips(clips)
   }, [])
 
   const removeClue = (id: string) => {
@@ -210,9 +198,16 @@ export default function App() {
                 />
               </div>
 
-              <MoodTracker onMoodSelect={handleMoodSelect} todaysMood={todaysMood} />
+              <MoodTracker 
+                userId={userId}
+                onMoodSelect={handleMoodSelect} 
+                todaysMood={todaysMood} 
+              />
 
-              <TeacherSignal onSignal={handleTeacherSignal} />
+              <TeacherSignal 
+                studentId={userId}
+                onSignal={handleTeacherSignal} 
+              />
             </div>
 
             <div className="lg:w-96 lg:sticky lg:top-20 lg:self-start">
@@ -343,10 +338,9 @@ export default function App() {
 
         {activeTab === "courage" && (
           <CourageClips
+            userId={userId}
             clips={courageClips}
-            onSaveClip={handleSaveClip}
-            onDeleteClip={handleDeleteClip}
-            onPlayClip={handlePlayClip}
+            onClipsChange={handleClipsChange}
           />
         )}
 
@@ -359,7 +353,7 @@ export default function App() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1">
-                <TeacherSignal onSignal={handleTeacherSignal} />
+                <TeacherSignal studentId={userId} onSignal={handleTeacherSignal} />
               </div>
 
               <div className="lg:col-span-1 rounded-2xl border border-border bg-card p-5">

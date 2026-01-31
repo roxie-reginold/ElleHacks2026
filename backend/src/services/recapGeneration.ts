@@ -1,9 +1,21 @@
 import OpenAI from 'openai';
+import { generateCalmingPrompt } from './elevenLabsService';
+import path from 'path';
 
-// Initialize OpenAI client
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+// Initialize OpenRouter client (OpenAI-compatible)
+const openrouter = process.env.OPEN_ROUTER_API_KEY
+  ? new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPEN_ROUTER_API_KEY,
+      defaultHeaders: {
+        'HTTP-Referer': 'https://whisper-lite.app',
+        'X-Title': 'Whisper Lite',
+      },
+    })
   : null;
+
+// OpenRouter model for Gemini
+const GEMINI_MODEL = 'google/gemini-flash-1.5';
 
 export interface KeyTerm {
   term: string;
@@ -17,26 +29,22 @@ export interface RecapResult {
 }
 
 /**
- * Generate a recap from transcript at specified reading level
+ * Generate a recap from transcript at specified reading level using Gemini via OpenRouter
+ * Optionally generates audio using ElevenLabs TTS
  */
 export async function generateRecap(
   transcript: string,
-  readingLevelGrade: number = 7
+  readingLevelGrade: number = 7,
+  generateAudio: boolean = false
 ): Promise<RecapResult> {
-  if (!openai) {
-    console.log('No OpenAI API key, using mock recap');
-    return getMockRecap(transcript, readingLevelGrade);
+  if (!openrouter) {
+    console.error('No OpenRouter API key configured - recap generation unavailable');
+    throw new Error('OpenRouter API key not configured. Please set OPEN_ROUTER_API_KEY environment variable.');
   }
 
   const levelGuidelines = getReadingLevelGuidelines(readingLevelGrade);
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a friendly, supportive assistant creating class recaps for neurodivergent students.
+  const systemPrompt = `You are a friendly, supportive assistant creating class recaps for neurodivergent students.
 
 Reading Level: Grade ${readingLevelGrade}
 ${levelGuidelines}
@@ -48,41 +56,70 @@ Create a summary that:
 4. Defines any difficult words
 5. Ends with ONE gentle encouragement (not over the top)
 
-Respond in JSON format:
-{
-  "summaryText": "Your friendly summary here (3-7 sentences)",
-  "keyTerms": [
-    {"term": "word", "explanation": "simple explanation"}
-  ]
-}
-
 IMPORTANT:
 - Be genuinely supportive, not patronizing
 - Focus on what was learned, not what was missed
-- Keep it brief - no more than 100 words in the summary`,
-        },
-        {
-          role: 'user',
-          content: `Create a recap for this class transcript:\n\n"${transcript}"`,
-        },
+- Keep it brief - no more than 100 words in the summary
+
+Return JSON with:
+- summaryText: the recap summary
+- keyTerms: array of { term: string, explanation: string }`;
+
+  try {
+    const response = await openrouter.chat.completions.create({
+      model: GEMINI_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Create a recap for this class transcript:\n\n"${transcript}"` },
       ],
-      response_format: { type: 'json_object' },
       temperature: 0.7,
+      response_format: { type: 'json_object' },
     });
 
-    const content = response.choices[0].message.content;
-    if (!content) {
-      return getMockRecap(transcript, readingLevelGrade);
+    const responseText = response.choices[0]?.message?.content || '{}';
+    
+    // Parse JSON response, handling potential markdown code blocks
+    let parsed: any;
+    try {
+      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) ||
+                       responseText.match(/```\s*([\s\S]*?)\s*```/);
+      const jsonStr = jsonMatch ? jsonMatch[1] : responseText;
+      parsed = JSON.parse(jsonStr.trim());
+    } catch (parseError) {
+      console.warn('Failed to parse Gemini JSON response:', parseError);
+      // Try to extract meaningful content from the response
+      parsed = {
+        summaryText: responseText.slice(0, 500),
+        keyTerms: [],
+      };
     }
 
-    const result = JSON.parse(content);
-    return {
-      summaryText: result.summaryText || getMockSummary(readingLevelGrade),
-      keyTerms: result.keyTerms || [],
+    console.log('Recap generated successfully via Gemini (OpenRouter)');
+
+    const result: RecapResult = {
+      summaryText: parsed.summaryText || 'Summary could not be generated.',
+      keyTerms: Array.isArray(parsed.keyTerms) ? parsed.keyTerms : [],
     };
-  } catch (error) {
-    console.error('Recap generation error:', error);
-    return getMockRecap(transcript, readingLevelGrade);
+
+    // Generate audio using ElevenLabs if requested
+    if (generateAudio && result.summaryText) {
+      try {
+        const audioResult = await generateCalmingPrompt(result.summaryText);
+        if (audioResult.success && audioResult.audioPath) {
+          // Return just the filename for the audio URL (frontend will construct full URL)
+          result.audioUrl = path.basename(audioResult.audioPath);
+          console.log('Recap audio generated via ElevenLabs');
+        }
+      } catch (audioError) {
+        console.warn('Could not generate recap audio:', audioError);
+        // Continue without audio - it's optional
+      }
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('Gemini recap generation error:', error);
+    throw new Error(`Recap generation failed: ${error.message || 'Unknown error'}`);
   }
 }
 
@@ -115,55 +152,6 @@ Guidelines for Grade 9-10:
 - Include key details
 - Professional but warm tone`;
   }
-}
-
-/**
- * Mock recap for demo/offline mode
- */
-function getMockRecap(transcript: string, readingLevelGrade: number): RecapResult {
-  return {
-    summaryText: getMockSummary(readingLevelGrade),
-    keyTerms: getMockKeyTerms(transcript),
-  };
-}
-
-function getMockSummary(grade: number): string {
-  if (grade <= 6) {
-    return "Today you learned about plants. Plants are amazing! They use sunlight to make food. This is called photosynthesis. You did a great job listening. Proud of you!";
-  } else if (grade <= 8) {
-    return "Today's class covered photosynthesis - how plants make their own food. Plants use sunlight, water, and carbon dioxide in this process. They also release oxygen, which we need to breathe. You followed along well today!";
-  } else {
-    return "Today's lesson explored the process of photosynthesis in detail. Plants convert light energy into chemical energy through chlorophyll molecules in their leaves. This reaction produces glucose for the plant's energy needs and releases oxygen as a byproduct. Good work staying engaged with the material.";
-  }
-}
-
-function getMockKeyTerms(transcript: string): KeyTerm[] {
-  const lowerTranscript = transcript.toLowerCase();
-  const terms: KeyTerm[] = [];
-  
-  if (lowerTranscript.includes('photosynthesis')) {
-    terms.push({
-      term: 'Photosynthesis',
-      explanation: 'How plants make food using sunlight',
-    });
-  }
-  
-  if (lowerTranscript.includes('chlorophyll')) {
-    terms.push({
-      term: 'Chlorophyll',
-      explanation: 'The green stuff in leaves that catches light',
-    });
-  }
-  
-  // Add some default terms if none found
-  if (terms.length === 0) {
-    terms.push({
-      term: 'Class topic',
-      explanation: 'The main subject discussed today',
-    });
-  }
-  
-  return terms;
 }
 
 export default {

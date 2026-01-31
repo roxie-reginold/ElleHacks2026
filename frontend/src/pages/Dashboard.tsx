@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
+import { getWeeklyDashboard } from '../services/api';
 
 interface WeeklyStats {
-  totalSessions: number;
-  calmMoments: number;
-  triggersEncountered: number;
-  breathingUsed: number;
-  journalsSaved: number;
+  totalSessions?: number;
+  calmMoments?: number;
+  triggersEncountered?: number;
+  breathingUsed?: number;
+  journalsSaved?: number;
+  // Backend format
+  totalEmotionLogs?: number;
+  totalWins?: number;
+  totalBreathingBreaks?: number;
+  averageStressLevel?: number;
 }
 
 interface PatternInsight {
@@ -34,26 +40,76 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [user?._id]);
 
   const loadDashboardData = async () => {
     setLoading(true);
 
     // Try to fetch from API first
     try {
-      const response = await fetch(`/api/dashboard/weekly?userId=${user?._id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data.stats);
-        setInsights(data.insights);
-        setLoading(false);
-        return;
+      const data = await getWeeklyDashboard(user?._id || 'demo-user');
+      
+      // Map backend response to frontend format
+      const mappedStats: WeeklyStats = {
+        totalSessions: data.stats?.totalEmotionLogs || data.stats?.totalSessions || 0,
+        calmMoments: data.stats?.totalWins || data.stats?.calmMoments || 0,
+        triggersEncountered: data.stats?.triggersEncountered || 0,
+        breathingUsed: data.stats?.totalBreathingBreaks || data.stats?.breathingUsed || 0,
+        journalsSaved: data.stats?.journalsSaved || 0,
+      };
+      setStats(mappedStats);
+      
+      // Map insights from backend (Gemini-generated)
+      const mappedInsights: PatternInsight[] = [];
+      
+      // Add insights from Gemini
+      if (data.insights && Array.isArray(data.insights)) {
+        data.insights.forEach((insight: string | { text: string }) => {
+          const text = typeof insight === 'string' ? insight : insight.text;
+          mappedInsights.push({
+            text,
+            type: 'positive',
+          });
+        });
       }
-    } catch {
-      // Fall back to local data
+      
+      // Add suggestions from Gemini
+      if (data.suggestions && Array.isArray(data.suggestions)) {
+        data.suggestions.forEach((suggestion: string | { text: string }) => {
+          const text = typeof suggestion === 'string' ? suggestion : suggestion.text;
+          mappedInsights.push({
+            text,
+            type: 'suggestion',
+          });
+        });
+      }
+      
+      // Add pattern insights if available
+      if (data.patterns) {
+        if (data.patterns.calmestTimeOfDay && data.patterns.calmestTimeOfDay !== 'unknown') {
+          mappedInsights.push({
+            text: `You tend to feel calmer in the ${data.patterns.calmestTimeOfDay}.`,
+            type: 'positive',
+          });
+        }
+      }
+      
+      if (mappedInsights.length === 0) {
+        mappedInsights.push({
+          text: 'Keep using Whisper Lite to build your insights.',
+          type: 'neutral',
+        });
+      }
+      
+      setInsights(mappedInsights);
+      setLoading(false);
+      return;
+    } catch (err) {
+      console.error('Dashboard API error:', err);
+      // Fall back to local data calculation
     }
 
-    // Calculate from localStorage
+    // Calculate from localStorage as fallback
     const sessions: Session[] = JSON.parse(localStorage.getItem('whisper-sessions') || '[]');
     const journals = JSON.parse(localStorage.getItem('whisper-journals') || '[]');
     
@@ -71,35 +127,26 @@ export default function Dashboard() {
 
     setStats(calculatedStats);
 
-    // Generate insights
+    // Generate basic insights from local data only (no hardcoded day-specific ones)
     const generatedInsights: PatternInsight[] = [];
     
-    if (calculatedStats.totalSessions > 0) {
+    if (calculatedStats.totalSessions && calculatedStats.totalSessions > 0) {
       generatedInsights.push({
         text: `You've had ${calculatedStats.totalSessions} session${calculatedStats.totalSessions > 1 ? 's' : ''} this week.`,
         type: 'neutral',
       });
     }
 
-    if (calculatedStats.calmMoments > 0) {
+    if (calculatedStats.calmMoments && calculatedStats.calmMoments > 0) {
       generatedInsights.push({
         text: `${calculatedStats.calmMoments} calm minutes recorded. That's great!`,
         type: 'positive',
       });
     }
 
-    if (calculatedStats.breathingUsed > 0) {
+    if (calculatedStats.breathingUsed && calculatedStats.breathingUsed > 0) {
       generatedInsights.push({
         text: `You used breathing exercises ${calculatedStats.breathingUsed} time${calculatedStats.breathingUsed > 1 ? 's' : ''}. Self-care matters.`,
-        type: 'positive',
-      });
-    }
-
-    // Day-based insights (mock for demo)
-    const dayOfWeek = new Date().getDay();
-    if (dayOfWeek === 2) { // Tuesday
-      generatedInsights.push({
-        text: 'You tend to feel calmer on Tuesdays.',
         type: 'positive',
       });
     }

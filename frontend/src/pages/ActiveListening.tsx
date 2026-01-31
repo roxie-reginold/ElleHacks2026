@@ -5,6 +5,7 @@ import { useUser } from '../context/UserContext';
 import { useHaptics } from '../hooks/useHaptics';
 import AudioRecorder from '../components/AudioRecorder/AudioRecorder';
 import { BreathingExercise } from '../components/BreathingExercise/BreathingExercise';
+import { analyzeAudio, logEmotion, incrementFocusMoments } from '../services/api';
 
 type UIState = 'green' | 'amber';
 type SessionState = 'idle' | 'recording' | 'analyzing' | 'active' | 'stressor';
@@ -56,26 +57,10 @@ export default function ActiveListening() {
     setSessionState('analyzing');
     
     try {
-      const formData = new FormData();
-      formData.append('userId', user?._id || 'demo-user');
+      const userId = user?._id || 'demo-user';
+      const result = await analyzeAudio(userId, audioBlob, audioFile);
       
-      if (audioBlob) {
-        formData.append('audio', audioBlob, 'recording.webm');
-      } else if (audioFile) {
-        formData.append('audio', audioFile);
-      }
-
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Analysis failed');
-      }
-
-      const result: AnalysisResult = await response.json();
-      setAnalysisResult(result);
+      setAnalysisResult(result as AnalysisResult);
       setTranscript(result.transcript || '');
       
       // Update UI based on analysis
@@ -86,6 +71,13 @@ export default function ActiveListening() {
         setCurrentPrompt(result.suggestedPrompt || CALMING_PROMPTS[Math.floor(Math.random() * CALMING_PROMPTS.length)]);
         triggerHaptic('gentle');
         
+        // Log stress detection
+        await logEmotion(userId, '😰', {
+          context: 'stressor_detected',
+          stressLevel: 3,
+          sessionId,
+        }).catch(console.error);
+        
         // Show check-in after a moment
         setTimeout(() => setShowCheckIn(true), 3000);
       } else {
@@ -93,27 +85,10 @@ export default function ActiveListening() {
       }
     } catch (error) {
       console.error('Analysis error:', error);
-      // Fall back to mock analysis
-      mockAnalysis();
+      // Show error state and allow retry - don't use mock data
+      setSessionState('idle');
+      setCurrentPrompt("We couldn't analyze the audio right now. Please try again.");
     }
-  };
-
-  const mockAnalysis = () => {
-    // Simulate analysis for demo/offline mode
-    const isStressor = Math.random() > 0.6;
-    
-    if (isStressor) {
-      setUiState('amber');
-      setSessionState('stressor');
-      setCurrentPrompt(CALMING_PROMPTS[Math.floor(Math.random() * CALMING_PROMPTS.length)]);
-      triggerHaptic('gentle');
-      setTimeout(() => setShowCheckIn(true), 3000);
-    } else {
-      setUiState('green');
-      setSessionState('active');
-    }
-    
-    setTranscript('Today we discussed the importance of photosynthesis in plants. Remember, plants convert sunlight into energy through this process.');
   };
 
   const handleEndSession = useCallback(() => {
@@ -139,11 +114,28 @@ export default function ActiveListening() {
     navigate(`/recap/${sessionId}`);
   }, [sessionId, transcript, uiState, showBreathing, navigate]);
 
-  const handleCheckInResponse = (response: 'yes' | 'no' | 'not_now') => {
+  const handleCheckInResponse = async (response: 'yes' | 'no' | 'not_now') => {
     setShowCheckIn(false);
+    const userId = user?._id || 'demo-user';
+    
     if (response === 'yes') {
       setShowBreathing(true);
+      
+      // Increment focus moments for using coping tool
+      try {
+        await incrementFocusMoments(userId);
+      } catch (error) {
+        console.error('Failed to increment focus moments:', error);
+      }
+      
+      // Log positive coping action
+      await logEmotion(userId, '🌬️', {
+        context: 'breathing_exercise',
+        sessionId,
+        notes: 'User chose to do breathing exercise',
+      }).catch(console.error);
     }
+    
     // Log feedback for learning
     console.log('User feedback:', response);
   };

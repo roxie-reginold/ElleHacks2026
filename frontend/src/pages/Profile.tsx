@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
 import type { TrustedAdult } from '../context/UserContext';
+import { deleteProfile } from '../services/api';
 
 export default function Profile() {
   const { user, updatePreferences } = useUser();
@@ -33,8 +34,19 @@ export default function Profile() {
     }
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     if (confirm('This will delete all your data. This cannot be undone. Are you sure?')) {
+      try {
+        // Delete from backend if user has an ID
+        if (user?._id) {
+          await deleteProfile(user._id);
+        }
+      } catch (error) {
+        console.error('Failed to delete profile from server:', error);
+        // Continue with local deletion even if backend fails
+      }
+      
+      // Clear local storage
       localStorage.clear();
       window.location.reload();
     }

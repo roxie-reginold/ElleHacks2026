@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useContextListener } from '../hooks/useContextListener';
 import { useUser } from '../context/UserContext';
+import { getContextClues as fetchContextClues } from '../services/api';
 
 interface ContextClue {
   _id: string;
@@ -83,15 +84,12 @@ export default function ContextClues() {
   const loadClues = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/context-clues');
-      if (response.ok) {
-        const data = await response.json();
-        setClues(data);
-      } else {
-        setClues(getDefaultClues());
-      }
-    } catch {
-      setClues(getDefaultClues());
+      const data = await fetchContextClues();
+      setClues(data as ContextClue[]);
+    } catch (err) {
+      console.error('Failed to load context clues:', err);
+      // Backend returns default clues even when DB fails, so empty array means actual error
+      setClues([]);
     }
     setLoading(false);
   };
@@ -145,64 +143,6 @@ export default function ContextClues() {
     }
   };
 
-  const getDefaultClues = (): ContextClue[] => [
-    {
-      _id: 'default-1',
-      phrase: "We'll talk later",
-      meaning: "They may be busy right now, not mad at you",
-      examples: ["Teacher says this when class is busy"],
-      category: "classroom",
-    },
-    {
-      _id: 'default-2',
-      phrase: "You're wrong",
-      meaning: "Your answer wasn't correct, but that's okay - mistakes help us learn",
-      examples: ["During class discussion"],
-      category: "feedback",
-    },
-    {
-      _id: 'default-3',
-      phrase: "See me after class",
-      meaning: "The teacher wants to talk privately, it could be about anything - not necessarily bad",
-      examples: ["Could be about extra help or a question you had"],
-      category: "classroom",
-    },
-    {
-      _id: 'default-4',
-      phrase: "That's interesting...",
-      meaning: "They're thinking about what you said - this is usually neutral or positive",
-      examples: ["Response to sharing an idea"],
-      category: "social",
-    },
-    {
-      _id: 'default-5',
-      phrase: "We need to talk",
-      meaning: "Someone wants to have a conversation with you - try not to assume the worst",
-      examples: ["Could be about plans, help, or just checking in"],
-      category: "social",
-    },
-    {
-      _id: 'default-6',
-      phrase: "Quiet down, everyone",
-      meaning: "The whole class is being asked to be quieter - it's not directed at you specifically",
-      examples: ["Class is getting loud"],
-      category: "classroom",
-    },
-    {
-      _id: 'default-7',
-      phrase: "Pay attention",
-      meaning: "A reminder to focus - everyone gets distracted sometimes",
-      examples: ["During a lesson"],
-      category: "classroom",
-    },
-    {
-      _id: 'default-8',
-      phrase: "I'm disappointed",
-      meaning: "They had expectations that weren't met - this is about the situation, not your worth",
-      examples: ["After a test or assignment"],
-      category: "feedback",
-    },
-  ];
 
   return (
     <div className="flex-1 flex flex-col px-6 py-8 pb-24">

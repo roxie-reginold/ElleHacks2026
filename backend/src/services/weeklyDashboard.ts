@@ -1,8 +1,21 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { EmotionLog, Win, WeeklyInsight } from '../models/EmotionLog';
 import Session from '../models/Session';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// Initialize OpenRouter client (OpenAI-compatible) for Gemini
+const openrouter = process.env.OPEN_ROUTER_API_KEY
+  ? new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPEN_ROUTER_API_KEY,
+      defaultHeaders: {
+        'HTTP-Referer': 'https://whisper-lite.app',
+        'X-Title': 'Whisper Lite',
+      },
+    })
+  : null;
+
+// OpenRouter model for Gemini
+const GEMINI_MODEL = 'google/gemini-flash-1.5';
 
 export interface AggregatedWeeklyData {
   emotionLogs: any[];
@@ -148,22 +161,30 @@ export async function aggregateWeeklyData(
 }
 
 /**
- * Generate AI insights using Gemini
+ * Generate AI insights using Gemini via OpenRouter
  */
 export async function generateGeminiInsights(
   aggregatedData: AggregatedWeeklyData
 ): Promise<{ insights: string[]; suggestions: string[] }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  // Return mock insights if no API key
-  if (!apiKey) {
-    return generateMockInsights(aggregatedData);
+  if (!openrouter) {
+    console.error('No OpenRouter API key configured - insights unavailable');
+    throw new Error('OpenRouter API key not configured. Please set OPEN_ROUTER_API_KEY environment variable.');
   }
 
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const systemPrompt = `You are a supportive school counselor analyzing a student's weekly emotional data for a mental wellness app.
 
-    const prompt = `You are a supportive school counselor analyzing a student's weekly emotional data for a mental wellness app. Generate 2-3 kind, encouraging insights and 1-2 actionable suggestions based on this week's data:
+IMPORTANT RULES:
+1. Always be positive and supportive
+2. Use simple language (8th grade level)
+3. Acknowledge their effort and resilience
+4. Each insight should be 1-2 sentences
+5. Each suggestion should start with an action verb (e.g., "Try", "Practice", "Consider")
+
+Return JSON with:
+- insights: array of 2-3 kind, encouraging insight strings
+- suggestions: array of 1-2 actionable suggestion strings`;
+
+  const userPrompt = `Generate 2-3 kind, encouraging insights and 1-2 actionable suggestions based on this week's data:
 
 Emotion Check-ins: ${aggregatedData.totalEmotionLogs} logged
 - Average stress level: ${aggregatedData.averageStressLevel}/10
@@ -177,82 +198,44 @@ Insights about emotional patterns:
 - Time distribution: ${JSON.stringify(aggregatedData.timeDistribution)}
 - Context challenges: ${Object.entries(aggregatedData.contextDistribution)
       .map(([ctx, count]) => `${ctx} (${count})`)
-      .join(', ') || 'none'}
+      .join(', ') || 'none'}`;
 
-IMPORTANT RULES:
-1. Always be positive and supportive
-2. Use simple language (8th grade level)
-3. Acknowledge their effort and resilience
-4. Return ONLY valid JSON with exactly this structure (no markdown, no code blocks):
-{"insights":["insight 1","insight 2"],"suggestions":["suggestion 1","suggestion 2"]}
-5. Each insight should be 1-2 sentences
-6. Each suggestion should start with an action verb (e.g., "Try", "Practice", "Consider")`;
+  try {
+    const response = await openrouter.chat.completions.create({
+      model: GEMINI_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const responseText = response.choices[0]?.message?.content || '{}';
 
-    // Parse JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        insights: parsed.insights || [],
-        suggestions: parsed.suggestions || [],
-      };
+    // Parse JSON response, handling potential markdown code blocks
+    let parsed: any;
+    try {
+      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) ||
+                       responseText.match(/```\s*([\s\S]*?)\s*```/) ||
+                       responseText.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : responseText;
+      parsed = JSON.parse(jsonStr.trim());
+    } catch (parseError) {
+      console.warn('Failed to parse Gemini JSON response for insights');
+      parsed = { insights: [], suggestions: [] };
     }
 
-    return generateMockInsights(aggregatedData);
-  } catch (error) {
-    console.error('Error generating Gemini insights:', error);
-    return generateMockInsights(aggregatedData);
+    console.log('Gemini weekly insights generated successfully via OpenRouter');
+
+    return {
+      insights: Array.isArray(parsed.insights) ? parsed.insights : [],
+      suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+    };
+  } catch (error: any) {
+    console.error('Gemini insights generation error:', error);
+    throw new Error(`Insights generation failed: ${error.message || 'Unknown error'}`);
   }
-}
-
-/**
- * Generate fallback mock insights
- */
-export function generateMockInsights(aggregatedData: AggregatedWeeklyData): {
-  insights: string[];
-  suggestions: string[];
-} {
-  const insights: string[] = [];
-  const suggestions: string[] = [];
-
-  // Build insights based on data
-  if (aggregatedData.totalEmotionLogs > 0) {
-    insights.push(
-      `You checked in on your feelings ${aggregatedData.totalEmotionLogs} times this week. That's great self-awareness!`
-    );
-  }
-
-  if (aggregatedData.calmestTimeOfDay !== 'unknown') {
-    insights.push(
-      `You tend to feel calmer ${aggregatedData.calmestTimeOfDay}. Notice when you feel more peaceful.`
-    );
-  }
-
-  if (aggregatedData.totalWins > 0) {
-    insights.push(
-      `You logged ${aggregatedData.totalWins} win${aggregatedData.totalWins > 1 ? 's' : ''} this week! You're building momentum.`
-    );
-  }
-
-  if (aggregatedData.averageStressLevel > 6) {
-    suggestions.push('Try using a breathing exercise when stress feels high—even 2 minutes helps.');
-  }
-
-  if (aggregatedData.mostStressfulContext !== 'unknown') {
-    suggestions.push(`${aggregatedData.mostStressfulContext} feels challenging. You're not alone—many students feel this way.`);
-  }
-
-  if (aggregatedData.totalBreathingBreaks === 0 && aggregatedData.totalEmotionLogs > 0) {
-    suggestions.push('Next time stress shows up, try a quick breathing break before jumping into the moment.');
-  }
-
-  return {
-    insights: insights.length > 0 ? insights : ["You're doing the work to understand yourself better."],
-    suggestions: suggestions.length > 0 ? suggestions : ['Keep checking in with yourself—awareness is the first step.'],
-  };
 }
 
 /**

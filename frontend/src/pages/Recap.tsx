@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
+import { generateRecap, getRecapBySession, incrementFocusMoments, getAudioUrl, generateCalmingAudio } from '../services/api';
 
 interface RecapData {
   summaryText: string;
@@ -26,74 +27,78 @@ export default function Recap() {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
 
   useEffect(() => {
-    generateRecap();
-  }, [readingLevel]);
+    loadRecap();
+  }, [readingLevel, sessionId, user?._id]);
 
-  const generateRecap = async () => {
+  const loadRecap = async () => {
     setLoading(true);
+    setError(null);
+    
+    // First, try to get existing recap from backend
+    if (sessionId) {
+      try {
+        const existingRecap = await getRecapBySession(sessionId);
+        if (existingRecap) {
+          setRecap(existingRecap);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Continue to generate new recap
+      }
+    }
     
     // Get session from localStorage
     const sessions = JSON.parse(localStorage.getItem('whisper-sessions') || '[]');
     const session = sessions.find((s: Session) => s.id === sessionId);
     
-    if (!session) {
-      // Use mock data for demo
-      setRecap({
-        summaryText: getDefaultRecap(readingLevel),
-        keyTerms: [
-          { term: 'Photosynthesis', explanation: 'How plants make food from sunlight' },
-          { term: 'Chlorophyll', explanation: 'The green stuff in leaves that catches light' },
-        ],
-      });
+    if (!session || !session.transcript) {
+      // No session data - show helpful message instead of fake data
+      setError("No session data found. Please record a class session first.");
       setLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/recap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user?._id,
-          sessionId,
-          transcript: session.transcript,
-          readingLevelGrade: readingLevel,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRecap(data);
-      } else {
-        throw new Error('Failed to generate recap');
-      }
-    } catch {
-      // Fallback to mock recap
-      setRecap({
-        summaryText: getDefaultRecap(readingLevel),
-        keyTerms: [
-          { term: 'Photosynthesis', explanation: 'How plants make food from sunlight' },
-          { term: 'Chlorophyll', explanation: 'The green stuff in leaves that catches light' },
-        ],
-      });
+      // Generate recap using Gemini via backend API
+      const data = await generateRecap(
+        user?._id || 'demo-user',
+        sessionId || '',
+        session.transcript,
+        readingLevel
+      );
+      setRecap(data);
+    } catch (err) {
+      console.error('Failed to generate recap:', err);
+      setError("Couldn't generate recap. Please check your connection and try again.");
     }
     
     setLoading(false);
   };
 
-  const getDefaultRecap = (level: number): string => {
-    if (level <= 6) {
-      return "Today you learned about plants. Plants are amazing! They eat sunlight to make food. This is called photosynthesis. You did a great job listening today. Proud of you!";
-    } else if (level <= 8) {
-      return "Today's class was about photosynthesis. Plants use sunlight, water, and carbon dioxide to make their own food. They also make oxygen, which we breathe. You followed along well today. Keep it up!";
-    } else {
-      return "Today's lesson covered photosynthesis in detail. Plants convert light energy into chemical energy through chlorophyll in their leaves. This process produces glucose for energy and releases oxygen as a byproduct. You engaged well with the material today.";
+  // Generate audio for the recap using ElevenLabs TTS
+  const handleGenerateAudio = async () => {
+    if (!recap?.summaryText) return;
+    
+    setGeneratingAudio(true);
+    try {
+      const result = await generateCalmingAudio(recap.summaryText);
+      if (result.success && result.audioPath) {
+        // Update recap with audio URL
+        const filename = result.audioPath.split('/').pop() || '';
+        setRecap(prev => prev ? { ...prev, audioUrl: getAudioUrl(filename) } : prev);
+      }
+    } catch (err) {
+      console.error('Failed to generate audio:', err);
     }
+    setGeneratingAudio(false);
   };
 
-  const handleSaveToJournal = () => {
+  const handleSaveToJournal = async () => {
     const journals = JSON.parse(localStorage.getItem('whisper-journals') || '[]');
     journals.push({
       sessionId,
@@ -103,27 +108,51 @@ export default function Recap() {
     localStorage.setItem('whisper-journals', JSON.stringify(journals));
     setSaved(true);
     
-    // Award focus moment
-    if (user) {
-      updatePreferences({ focusMoments: (user.focusMoments || 0) + 1 });
+    // Award focus moment via backend API
+    if (user?._id) {
+      try {
+        await incrementFocusMoments(user._id);
+        // Also update local state
+        updatePreferences({ focusMoments: (user.focusMoments || 0) + 1 });
+      } catch (error) {
+        console.error('Failed to increment focus moments:', error);
+        // Still update locally as fallback
+        updatePreferences({ focusMoments: (user.focusMoments || 0) + 1 });
+      }
     }
   };
 
   const handlePlayAudio = () => {
     if (recap?.audioUrl) {
-      const audio = new Audio(recap.audioUrl);
-      audio.play();
+      // If it's a relative path from the backend, convert to full URL
+      const audioUrl = recap.audioUrl.startsWith('http') 
+        ? recap.audioUrl 
+        : getAudioUrl(recap.audioUrl.replace(/^.*\//, ''));
+      
+      const audio = new Audio(audioUrl);
+      audio.play().catch(() => {
+        // If audio playback fails, fallback to speech synthesis
+        playWithSpeechSynthesis();
+      });
       setIsPlaying(true);
       audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => {
+        // Fallback to speech synthesis
+        playWithSpeechSynthesis();
+      };
     } else {
-      // Use speech synthesis as fallback
-      const utterance = new SpeechSynthesisUtterance(recap?.summaryText || '');
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      speechSynthesis.speak(utterance);
-      setIsPlaying(true);
-      utterance.onend = () => setIsPlaying(false);
+      playWithSpeechSynthesis();
     }
+  };
+
+  const playWithSpeechSynthesis = () => {
+    // Use speech synthesis as fallback
+    const utterance = new SpeechSynthesisUtterance(recap?.summaryText || '');
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    speechSynthesis.speak(utterance);
+    setIsPlaying(true);
+    utterance.onend = () => setIsPlaying(false);
   };
 
   const handleReadingLevelChange = (newLevel: number) => {
@@ -195,35 +224,85 @@ export default function Recap() {
               <div className="h-4 bg-[var(--bg-secondary)] rounded w-5/6"></div>
             </div>
           </div>
-        ) : (
+        ) : error ? (
           <div className="p-6 bg-[var(--bg-card)] rounded-xl">
-            <p className="text-[var(--text-primary)] leading-relaxed text-lg">
-              {recap?.summaryText}
-            </p>
-            
-            {/* Audio playback button */}
+            <p className="text-amber-400 mb-4">{error}</p>
             <button
-              onClick={handlePlayAudio}
-              disabled={isPlaying}
-              className="mt-4 flex items-center gap-2 text-[var(--color-calm-400)] hover:text-[var(--color-calm-300)] transition-colors min-h-[44px]"
-              aria-label={isPlaying ? 'Playing audio' : 'Play audio recap'}
+              onClick={loadRecap}
+              className="px-4 py-2 bg-[var(--color-calm-600)] text-white rounded-lg hover:bg-[var(--color-calm-500)] transition-colors"
             >
-              {isPlaying ? (
-                <>
-                  <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span>Playing...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
-                  </svg>
-                  <span>Listen to recap</span>
-                </>
-              )}
+              Try Again
             </button>
           </div>
-        )}
+        ) : recap ? (
+          <div className="p-6 bg-[var(--bg-card)] rounded-xl">
+            <p className="text-[var(--text-primary)] leading-relaxed text-lg">
+              {recap.summaryText}
+            </p>
+            
+            {/* Audio playback/generation buttons */}
+            <div className="mt-4 flex items-center gap-3 flex-wrap">
+              {recap.audioUrl ? (
+                <button
+                  onClick={handlePlayAudio}
+                  disabled={isPlaying}
+                  className="flex items-center gap-2 text-[var(--color-calm-400)] hover:text-[var(--color-calm-300)] transition-colors min-h-[44px]"
+                  aria-label={isPlaying ? 'Playing audio' : 'Play audio recap'}
+                >
+                  {isPlaying ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <span>Playing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                      </svg>
+                      <span>Listen to recap</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleGenerateAudio}
+                  disabled={generatingAudio}
+                  className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-secondary)] text-[var(--text-secondary)] rounded-lg hover:bg-[var(--bg-primary)] transition-colors min-h-[44px]"
+                  aria-label="Generate audio recap"
+                >
+                  {generatingAudio ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <span>Generating audio...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                      <span>Generate audio</span>
+                    </>
+                  )}
+                </button>
+              )}
+              
+              {/* Fallback to speech synthesis */}
+              {!recap.audioUrl && !generatingAudio && (
+                <button
+                  onClick={playWithSpeechSynthesis}
+                  disabled={isPlaying}
+                  className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors min-h-[44px]"
+                  aria-label="Use browser speech"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                  </svg>
+                  <span className="text-sm">Use browser voice</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
       </motion.div>
 
       {/* Key Terms */}
