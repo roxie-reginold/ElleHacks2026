@@ -7,7 +7,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
 // Load environment variables
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config();
 
 // Import routes
 import analyzeRoutes from './routes/analyze';
@@ -16,6 +16,9 @@ import dashboardRoutes from './routes/dashboard';
 import profileRoutes from './routes/profile';
 import alertRoutes from './routes/alert';
 import contextCluesRoutes from './routes/contextClues';
+import emotionsRoutes from './routes/emotions';
+import teacherRequestsRoutes from './routes/teacherrequests';
+import affirmationsRoutes from './routes/affirmations';
 import textToSpeechRoutes from './routes/textToSpeech';
 
 // Import Context Clues services
@@ -55,6 +58,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/alert', alertRoutes);
 app.use('/api/context-clues', contextCluesRoutes);
+app.use('/api/emotions', emotionsRoutes);
+app.use('/api/teacher-requests', teacherRequestsRoutes);
+app.use('/api/affirmations', affirmationsRoutes);
 app.use('/api/tts', textToSpeechRoutes);
 
 // Health check endpoint
