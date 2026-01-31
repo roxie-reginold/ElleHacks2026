@@ -7,6 +7,8 @@ export interface TrustedAdult {
   address: string;
 }
 
+export type UserRole = 'student' | 'teacher';
+
 export interface User {
   _id: string;
   displayName: string;
@@ -17,6 +19,7 @@ export interface User {
   trustedAdult?: TrustedAdult;
   focusMoments: number;
   journalPrompts: string[];
+  role?: UserRole;
 }
 
 interface UserContextType {
@@ -36,6 +39,7 @@ const DEFAULT_USER: User = {
   sensitivity: 'med',
   focusMoments: 0,
   journalPrompts: [],
+  role: 'student',
 };
 
 export function UserProvider({ children }: { children: ReactNode }) {

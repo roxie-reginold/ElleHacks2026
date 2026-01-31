@@ -4,8 +4,9 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import path from 'path';
 
-// Load environment variables
+// Load environment variables (try project root, then backend folder)
 dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // Import routes
 import analyzeRoutes from './routes/analyze';
@@ -14,6 +15,7 @@ import dashboardRoutes from './routes/dashboard';
 import profileRoutes from './routes/profile';
 import alertRoutes from './routes/alert';
 import contextCluesRoutes from './routes/contextClues';
+import helpRequestRoutes from './routes/helpRequest';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,11 +32,13 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/alert', alertRoutes);
 app.use('/api/context-clues', contextCluesRoutes);
+app.use('/api', helpRequestRoutes);
 
-// Health check endpoint
+// Health check endpoint (includes port so you can confirm what the server is listening on)
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
+    port: PORT,
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
@@ -42,7 +46,7 @@ app.get('/api/health', (req, res) => {
 
 // Connect to MongoDB (optional - works without it using in-memory storage)
 const connectDB = async () => {
-  const mongoUri = process.env.MONGODB_URI;
+  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
   
   if (mongoUri) {
     try {

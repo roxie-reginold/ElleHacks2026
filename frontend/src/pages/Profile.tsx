@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
-import type { TrustedAdult } from '../context/UserContext';
+import type { TrustedAdult, UserRole } from '../context/UserContext';
 
 export default function Profile() {
   const { user, updatePreferences } = useUser();
@@ -10,6 +10,7 @@ export default function Profile() {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [readingLevel, setReadingLevel] = useState(user?.readingLevelGrade || 7);
   const [sensitivity, setSensitivity] = useState<'low' | 'med' | 'high'>(user?.sensitivity || 'med');
+  const [role, setRole] = useState<UserRole>(user?.role || 'student');
   const [trustedAdult, setTrustedAdult] = useState<TrustedAdult | undefined>(user?.trustedAdult);
   const [showTrustedAdultForm, setShowTrustedAdultForm] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -19,6 +20,7 @@ export default function Profile() {
       displayName,
       readingLevelGrade: readingLevel,
       sensitivity,
+      role,
       trustedAdult,
     });
     setSaved(true);
@@ -135,6 +137,41 @@ export default function Profile() {
             {sensitivity === 'med' && 'Balanced detection (recommended)'}
             {sensitivity === 'high' && 'Detect subtle cues too'}
           </p>
+        </motion.section>
+
+        {/* Role (for demo: student vs teacher) */}
+        <motion.section
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.35 }}
+          className="p-4 bg-[var(--bg-card)] rounded-xl"
+        >
+          <label className="block text-sm text-[var(--text-secondary)] mb-3">
+            View as
+          </label>
+          <div className="flex gap-2">
+            {(['student', 'teacher'] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRole(r)}
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors min-h-[44px] ${
+                  role === r
+                    ? 'bg-[var(--color-calm-600)] text-white'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:bg-[var(--bg-primary)]'
+                }`}
+              >
+                {r === 'student' ? 'Student' : 'Teacher'}
+              </button>
+            ))}
+          </div>
+          {role === 'teacher' && (
+            <Link
+              to="/teacher-dashboard"
+              className="mt-3 block text-center text-sm text-[var(--color-calm-500)] hover:text-[var(--color-calm-400)]"
+            >
+              Open teacher dashboard →
+            </Link>
+          )}
         </motion.section>
 
         {/* Trusted Adult */}

@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import { Navigation } from "@/components/ui/Navigation"
+import { useUser } from "@/context/UserContext"
 import { BreathingExercise } from "@/components/BreathingExercise"
 import { AudioAnalyzer } from "@/components/AudioAnalyzer"
 import { MoodTracker } from "@/components/MoodTracker"
@@ -76,6 +78,8 @@ const typeConfig = {
 }
 
 export default function App() {
+  const { user, updatePreferences } = useUser()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState("home")
   const [contextClues, setContextClues] = useState<ContextClue[]>([])
   const [currentClue, setCurrentClue] = useState<ContextClue | null>(null)
@@ -117,10 +121,6 @@ export default function App() {
 
   const handleMoodSelect = useCallback((mood: "great" | "good" | "okay" | "tough" | "hard") => {
     setTodaysMood(mood)
-  }, [])
-
-  const handleTeacherSignal = useCallback((_type: "question" | "slow" | "help") => {
-    // Handle teacher signal
   }, [])
 
   const handleSaveClip = useCallback((clip: Omit<CourageClip, "id" | "createdAt">) => {
@@ -175,13 +175,27 @@ export default function App() {
             <span className="font-semibold text-foreground">CalmSpace</span>
           </div>
           <h1 className="hidden lg:block text-lg font-semibold text-foreground">CalmSpace</h1>
-          <button
-            onClick={() => setShowBreathing(true)}
-            className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20 active:scale-95"
-          >
-            <Wind className="h-4 w-4" />
-            Breathe
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBreathing(true)}
+              className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20 active:scale-95"
+            >
+              <Wind className="h-4 w-4" />
+              Breathe
+            </button>
+            <Link
+              to="/teacher-dashboard"
+              onClick={(e) => {
+                if (user?.role !== "teacher") {
+                  e.preventDefault()
+                  updatePreferences({ role: "teacher" }).then(() => navigate("/teacher-dashboard"))
+                }
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground hidden sm:inline"
+            >
+              Teacher view
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -212,7 +226,7 @@ export default function App() {
 
               <MoodTracker onMoodSelect={handleMoodSelect} todaysMood={todaysMood} />
 
-              <TeacherSignal onSignal={handleTeacherSignal} />
+              <TeacherSignal />
             </div>
 
             <div className="lg:w-96 lg:sticky lg:top-20 lg:self-start">
@@ -359,7 +373,7 @@ export default function App() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1">
-                <TeacherSignal onSignal={handleTeacherSignal} />
+                <TeacherSignal />
               </div>
 
               <div className="lg:col-span-1 rounded-2xl border border-border bg-card p-5">

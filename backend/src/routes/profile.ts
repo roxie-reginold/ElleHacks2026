@@ -59,6 +59,7 @@ router.post('/', async (req: Request, res: Response) => {
       trustedAdult,
       focusMoments,
       journalPrompts,
+      role,
     } = req.body;
 
     if (!_id) {
@@ -74,6 +75,7 @@ router.post('/', async (req: Request, res: Response) => {
       ? sensitivity 
       : 'med';
 
+    const validRole = role === 'teacher' ? 'teacher' : 'student';
     const updateData = {
       displayName: displayName || 'Friend',
       ageRange: ageRange || '13-15',
@@ -83,6 +85,7 @@ router.post('/', async (req: Request, res: Response) => {
       trustedAdult,
       focusMoments: focusMoments || 0,
       journalPrompts: journalPrompts || [],
+      role: validRole,
     };
 
     try {

@@ -1,4 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_URL || '';
+// Must be full URL (e.g. http://localhost:3001). Port-only values are normalized for dev.
+const raw = (import.meta.env.VITE_API_URL || '').trim();
+const API_BASE =
+  !raw
+    ? ''
+    : raw.startsWith('http')
+      ? raw.replace(/\/$/, '')
+      : `http://localhost:${raw.replace(/^:/, '')}`;
 
 interface AnalyzeResponse {
   detections: {
@@ -51,6 +58,7 @@ interface ProfileData {
     channel: 'sms' | 'email' | 'push';
     address: string;
   };
+  role?: 'student' | 'teacher';
 }
 
 /**
@@ -157,6 +165,88 @@ export async function updateProfile(profile: ProfileData): Promise<ProfileData> 
   return response.json();
 }
 
+export type HelpRequestType = 'help' | 'confused' | 'slower';
+
+export interface HelpRequestCreateBody {
+  type: HelpRequestType;
+  studentId: string;
+  classSessionId: string;
+  courseId?: string;
+  anonymous?: boolean;
+}
+
+export interface HelpRequestItem {
+  id: string;
+  type: HelpRequestType;
+  studentId: string;
+  studentDisplayName: string;
+  classSessionId: string;
+  courseId?: string;
+  createdAt: string;
+  seenAt?: string;
+  anonymous: boolean;
+}
+
+const BACKEND_UNREACHABLE_MSG =
+  'Backend not running. Start it with: cd backend && npm run dev (port 3001)';
+
+function isConnectionRefused(e: unknown): boolean {
+  return e instanceof TypeError && e.message === 'Failed to fetch';
+}
+
+/**
+ * Create a help request (Quick Help button tap)
+ */
+export async function createHelpRequest(body: HelpRequestCreateBody): Promise<{ id: string; createdAt: string }> {
+  try {
+    const response = await fetch(`${API_BASE}/api/help-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error || 'Failed to send help request');
+    }
+    return response.json();
+  } catch (e) {
+    if (isConnectionRefused(e)) throw new Error(BACKEND_UNREACHABLE_MSG);
+    throw e;
+  }
+}
+
+/**
+ * Get help requests for a session (teacher dashboard)
+ */
+export async function getHelpRequests(sessionId: string, since?: string): Promise<HelpRequestItem[]> {
+  const params = new URLSearchParams({ sessionId });
+  if (since) params.set('since', since);
+  try {
+    const response = await fetch(`${API_BASE}/api/help-requests?${params}`);
+    if (!response.ok) throw new Error('Failed to fetch help requests');
+    return response.json();
+  } catch (e) {
+    if (isConnectionRefused(e)) throw new Error(BACKEND_UNREACHABLE_MSG);
+    throw e;
+  }
+}
+
+/**
+ * Mark a help request as seen
+ */
+export async function updateHelpRequest(
+  id: string,
+  payload: { seen?: boolean; dismissed?: boolean }
+): Promise<{ id: string; seenAt?: string }> {
+  const response = await fetch(`${API_BASE}/api/help-request/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Failed to update help request');
+  return response.json();
+}
+
 /**
  * Send alert to trusted adult
  */
@@ -184,4 +274,7 @@ export default {
   getProfile,
   updateProfile,
   sendAlert,
+  createHelpRequest,
+  getHelpRequests,
+  updateHelpRequest,
 };
