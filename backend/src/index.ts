@@ -27,6 +27,7 @@ import { analyzeSocialContext, getQuickEventInterpretation } from './services/ge
 import { generateCalmingPrompt } from './services/elevenLabsService';
 import { ElevenLabsRealtimeClient, createRealtimeClient } from './services/elevenLabsRealtimeService';
 import ContextEvent from './models/ContextEvent';
+import { seedContextClues } from './models/ContextClue';
 
 // Store active realtime clients per socket
 const realtimeClients = new Map<string, ElevenLabsRealtimeClient>();
@@ -473,6 +474,8 @@ const connectDB = async () => {
     try {
       await mongoose.connect(mongoUri);
       console.log('✅ Connected to MongoDB');
+      // Seed context clues after successful connection
+      await seedContextClues();
     } catch (error) {
       console.warn('⚠️ MongoDB connection failed, using in-memory storage');
       console.error(error);

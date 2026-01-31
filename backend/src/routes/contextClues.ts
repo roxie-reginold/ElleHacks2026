@@ -3,9 +3,6 @@ import ContextClue, { seedContextClues } from '../models/ContextClue';
 
 const router = Router();
 
-// Seed context clues on startup
-seedContextClues().catch(console.error);
-
 /**
  * GET /api/context-clues
  * Get all context clues or search
