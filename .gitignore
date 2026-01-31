@@ -36,6 +36,12 @@ coverage/
 # Uploads (temp files)
 backend/uploads/
 
+# Generated audio files (keep directory structure with .gitkeep)
+backend/audio/*.mp3
+backend/audio/*.wav
+backend/audio/*.ogg
+!backend/audio/.gitkeep
+
 # OS
 Thumbs.db
 

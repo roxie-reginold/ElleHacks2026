@@ -45,7 +45,7 @@ export default function ActiveListening() {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
   const [transcript, setTranscript] = useState<string>('');
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [_analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
   // Generate session ID on mount
   useEffect(() => {
