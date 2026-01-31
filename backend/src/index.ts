@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import path from 'path';
 
 // Load environment variables
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config();
 
 // Import routes
 import analyzeRoutes from './routes/analyze';
