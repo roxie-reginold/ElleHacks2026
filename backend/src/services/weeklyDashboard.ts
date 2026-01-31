@@ -1,8 +1,15 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { EmotionLog, Win, WeeklyInsight } from '../models/EmotionLog';
 import Session from '../models/Session';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const openai = new OpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY || 'dummy-key',
+  baseURL: 'https://openrouter.ai/api/v1',
+  defaultHeaders: {
+    'HTTP-Referer': 'http://localhost:3001',
+    'X-Title': 'Whisper Lite Dashboard',
+  }
+});
 
 export interface AggregatedWeeklyData {
   emotionLogs: any[];
@@ -153,17 +160,26 @@ export async function aggregateWeeklyData(
 export async function generateGeminiInsights(
   aggregatedData: AggregatedWeeklyData
 ): Promise<{ insights: string[]; suggestions: string[] }> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  console.log('🔍 DEBUG: API Key loaded:', apiKey ? `${apiKey.substring(0, 15)}...${apiKey.substring(apiKey.length - 5)}` : 'NOT FOUND');
+  console.log('🔍 DEBUG: API Key length:', apiKey?.length);
 
   // Return mock insights if no API key
   if (!apiKey) {
+    console.log('⚠️  No API key found, using mock insights');
     return generateMockInsights(aggregatedData);
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    const prompt = `You are a supportive school counselor analyzing a student's weekly emotional data for a mental wellness app. Generate 2-3 kind, encouraging insights and 1-2 actionable suggestions based on this week's data:
+    console.log('🚀 Attempting to call OpenRouter with model: google/gemini-2.5-flash');
+    
+    const completion = await openai.chat.completions.create({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'user',
+          content: `You are a supportive school counselor analyzing a student's weekly emotional data for a mental wellness app. Generate 2-3 kind, encouraging insights and 1-2 actionable suggestions based on this week's data:
 
 Emotion Check-ins: ${aggregatedData.totalEmotionLogs} logged
 - Average stress level: ${aggregatedData.averageStressLevel}/10
@@ -186,20 +202,21 @@ IMPORTANT RULES:
 4. Return ONLY valid JSON with exactly this structure (no markdown, no code blocks):
 {"insights":["insight 1","insight 2"],"suggestions":["suggestion 1","suggestion 2"]}
 5. Each insight should be 1-2 sentences
-6. Each suggestion should start with an action verb (e.g., "Try", "Practice", "Consider")`;
+6. Each suggestion should start with an action verb (e.g., "Try", "Practice", "Consider")`
+        }
+      ],
+      response_format: { type: 'json_object' }
+    });
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const responseText = completion.choices[0]?.message?.content || '';
+    console.log('✅ OpenRouter response received');
 
     // Parse JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        insights: parsed.insights || [],
-        suggestions: parsed.suggestions || [],
-      };
-    }
+    const parsed = JSON.parse(responseText);
+    return {
+      insights: parsed.insights || [],
+      suggestions: parsed.suggestions || [],
+    };
 
     return generateMockInsights(aggregatedData);
   } catch (error) {
