@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../context/UserContext';
 import { useHaptics } from '../hooks/useHaptics';
 import AudioRecorder from '../components/AudioRecorder/AudioRecorder';
-import BreathingExercise from '../components/BreathingExercise/BreathingExercise';
+import { BreathingExercise } from '../components/BreathingExercise/BreathingExercise';
 
 type UIState = 'green' | 'amber';
 type SessionState = 'idle' | 'recording' | 'analyzing' | 'active' | 'stressor';
@@ -45,7 +45,7 @@ export default function ActiveListening() {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
   const [transcript, setTranscript] = useState<string>('');
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [_analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
   // Generate session ID on mount
   useEffect(() => {
@@ -287,7 +287,11 @@ export default function ActiveListening() {
       {/* Breathing Exercise Modal */}
       <AnimatePresence>
         {showBreathing && (
-          <BreathingExercise onClose={() => setShowBreathing(false)} />
+          <BreathingExercise
+            isOpen={showBreathing}
+            onClose={() => setShowBreathing(false)}
+            onComplete={() => setShowBreathing(false)}
+          />
         )}
       </AnimatePresence>
 
