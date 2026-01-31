@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* Custom CSS Variables for Whisper Lite theme */
+:root {
+  /* Calming greens */
+  --color-calm-50: #f0fdf4;
+  --color-calm-100: #dcfce7;
+  --color-calm-200: #bbf7d0;
+  --color-calm-300: #86efac;
+  --color-calm-400: #4ade80;
+  --color-calm-500: #22c55e;
+  --color-calm-600: #16a34a;
+  --color-calm-700: #15803d;
+  --color-calm-800: #166534;
+  --color-calm-900: #14532d;
+  --color-calm-950: #052e16;
+
+  /* Amber for stressors (non-alarming) */
+  --color-stress-50: #fffbeb;
+  --color-stress-100: #fef3c7;
+  --color-stress-200: #fde68a;
+  --color-stress-300: #fcd34d;
+  --color-stress-400: #fbbf24;
+  --color-stress-500: #f59e0b;
+
+  /* Background colors */
+  --bg-primary: #0a2818;
+  --bg-secondary: #0f3d24;
+  --bg-card: #1a4d2e;
+
+  /* Text colors */
+  --text-primary: #f0fdf4;
+  --text-secondary: #bbf7d0;
+  --text-muted: #86efac;
+}
+
+/* Base styles */
+html {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  color: var(--text-primary);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus states for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--color-calm-400);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-calm-700);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-calm-600);
+}
