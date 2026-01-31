@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useClassSession } from '@/context/ClassSessionContext';
 import { getHelpRequests, updateHelpRequest, type HelpRequestItem, type HelpRequestType } from '@/services/api';
+import { TeacherSuggestionPanel } from '@/components/TeacherSuggestionPanel';
 
 const POLL_INTERVAL_MS = 8000;
 const DEFAULT_SESSION_OPTIONS = [
@@ -118,6 +119,7 @@ export default function TeacherDashboard() {
     confused: requests.filter((r) => r.type === 'confused').length,
     slower: requests.filter((r) => r.type === 'slower').length,
   };
+  const unseenCount = requests.filter((r) => !r.seenAt).length;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -154,11 +156,15 @@ export default function TeacherDashboard() {
               </select>
               <button
                 type="button"
-                onClick={() => fetchRequests()}
-                className="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50"
-                title="Refresh"
+                onClick={() => {
+                  setLoading(true);
+                  fetchRequests();
+                }}
+                disabled={!classSessionId || loading}
+                className="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                title="Refresh help requests"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
@@ -249,6 +255,13 @@ export default function TeacherDashboard() {
           </ul>
         )}
       </main>
+
+      <TeacherSuggestionPanel
+        summary={summary}
+        requestCount={requests.length}
+        unseenCount={unseenCount}
+        classSessionId={classSessionId}
+      />
     </div>
   );
 }
