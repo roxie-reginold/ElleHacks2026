@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Navigation } from "@/components/ui/Navigation"
 import { useUser } from "@/context/UserContext"
@@ -91,10 +91,11 @@ export default function App() {
   /** When true, we're in the exercise phase (after "Start breathing"). */
   const [breathingContextExercise, setBreathingContextExercise] = useState(false)
 
-  // Real-time ElevenLabs transcription
+  // Real-time ElevenLabs transcription + Gemini tone/social cue analysis
   const {
     isStreaming,
     liveTranscript,
+    currentContext,
     startListening: startRealListening,
     stopListening: stopRealListening,
     connect,
@@ -108,6 +109,23 @@ export default function App() {
   useEffect(() => {
     setIsListening(isStreaming)
   }, [isStreaming])
+
+  // When backend sends a context update (Gemini), add it as a clue and show overlay (once per update)
+  const lastContextTimestampRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!currentContext || !isStreaming) return
+    const hasContent = currentContext.summary || currentContext.tone || currentContext.assessment
+    if (!hasContent) return
+    if (lastContextTimestampRef.current === currentContext.timestamp) return
+    lastContextTimestampRef.current = currentContext.timestamp
+    const clue: ContextClue = {
+      id: `ctx-${currentContext.timestamp}-${Date.now()}`,
+      message: currentContext.summary || (currentContext.tone ? `Tone: ${currentContext.tone}` : currentContext.assessment),
+      type: 'info',
+    }
+    setContextClues(prev => [clue, ...prev].slice(0, 10))
+    setCurrentClue(clue)
+  }, [currentContext, isStreaming])
 
   const handleStartListening = async () => {
     connect()
@@ -390,6 +408,41 @@ export default function App() {
                       {liveTranscript}
                       <span className="animate-pulse">|</span>
                     </p>
+                  </div>
+                )}
+
+                {isListening && currentContext && (currentContext.summary || currentContext.tone || currentContext.assessment) && (
+                  <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="h-4 w-4 text-emerald-500" />
+                      <p className="text-xs font-medium text-emerald-600">Tone & social cue (Gemini)</p>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      {currentContext.tone && currentContext.tone !== 'unknown' && (
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Tone:</span>{' '}
+                          <span className="font-medium capitalize">{currentContext.tone}</span>
+                        </p>
+                      )}
+                      <p className="text-muted-foreground">
+                        <span className="text-muted-foreground">Vibe:</span>{' '}
+                        <span className="capitalize">{currentContext.assessment}</span>
+                      </p>
+                      {currentContext.summary && (
+                        <p className="text-foreground leading-relaxed">{currentContext.summary}</p>
+                      )}
+                      {currentContext.triggers && currentContext.triggers.length > 0 && (
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Noted:</span>{' '}
+                          {currentContext.triggers.join(', ')}
+                        </p>
+                      )}
+                      {currentContext.recommendations && currentContext.recommendations.length > 0 && (
+                        <p className="text-emerald-700/90 italic text-xs mt-1">
+                          Try: {currentContext.recommendations[0]}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
