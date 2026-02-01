@@ -48,7 +48,7 @@ export default function Dashboard() {
     // Try to fetch from API first
     try {
       const data = await getWeeklyDashboard(user?._id || 'demo-user');
-      
+
       // Map backend response to frontend format
       const s = data.stats ?? {};
       const mappedStats: WeeklyStats = {
@@ -59,10 +59,10 @@ export default function Dashboard() {
         journalsSaved: s.journalsSaved ?? 0,
       };
       setStats(mappedStats);
-      
+
       // Map insights from backend (Gemini-generated)
       const mappedInsights: PatternInsight[] = [];
-      
+
       // Add insights from Gemini
       if (data.insights && Array.isArray(data.insights)) {
         data.insights.forEach((insight: string | { text: string }) => {
@@ -73,7 +73,7 @@ export default function Dashboard() {
           });
         });
       }
-      
+
       // Add suggestions from Gemini
       if (data.suggestions && Array.isArray(data.suggestions)) {
         data.suggestions.forEach((suggestion: string | { text: string }) => {
@@ -84,7 +84,7 @@ export default function Dashboard() {
           });
         });
       }
-      
+
       // Add pattern insights if available
       if (data.patterns) {
         if (data.patterns.calmestTimeOfDay && data.patterns.calmestTimeOfDay !== 'unknown') {
@@ -94,14 +94,14 @@ export default function Dashboard() {
           });
         }
       }
-      
+
       if (mappedInsights.length === 0) {
         mappedInsights.push({
-          text: 'Keep using Whisper Lite to build your insights.',
+          text: 'Keep using Learno to build your insights.',
           type: 'neutral',
         });
       }
-      
+
       setInsights(mappedInsights);
       setLoading(false);
       return;
@@ -113,7 +113,7 @@ export default function Dashboard() {
     // Calculate from localStorage as fallback
     const sessions: Session[] = JSON.parse(localStorage.getItem('whisper-sessions') || '[]');
     const journals = JSON.parse(localStorage.getItem('whisper-journals') || '[]');
-    
+
     // Filter to last 7 days
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const recentSessions = sessions.filter(s => new Date(s.startedAt) > weekAgo);
@@ -130,7 +130,7 @@ export default function Dashboard() {
 
     // Generate basic insights from local data only (no hardcoded day-specific ones)
     const generatedInsights: PatternInsight[] = [];
-    
+
     if (calculatedStats.totalSessions && calculatedStats.totalSessions > 0) {
       generatedInsights.push({
         text: `You've had ${calculatedStats.totalSessions} session${calculatedStats.totalSessions > 1 ? 's' : ''} this week.`,
@@ -262,11 +262,10 @@ export default function Dashboard() {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.4 + index * 0.1 }}
-                  className={`p-4 rounded-xl ${
-                    insight.type === 'positive'
+                  className={`p-4 rounded-xl ${insight.type === 'positive'
                       ? 'bg-[var(--color-calm-700)]/20 border border-[var(--color-calm-600)]/30'
                       : 'bg-[var(--bg-card)]'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start gap-3">
                     <span className="text-xl">{getInsightIcon(insight.type)}</span>

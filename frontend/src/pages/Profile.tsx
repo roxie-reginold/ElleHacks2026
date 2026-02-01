@@ -8,7 +8,7 @@ import { deleteProfile } from '../services/api';
 
 export default function Profile() {
   const { user, updatePreferences } = useUser();
-  
+
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [readingLevel, setReadingLevel] = useState(user?.readingLevelGrade || 7);
   const [sensitivity, setSensitivity] = useState<'low' | 'med' | 'high'>(user?.sensitivity || 'med');
@@ -48,7 +48,7 @@ export default function Profile() {
         console.error('Failed to delete profile from server:', error);
         // Continue with local deletion even if backend fails
       }
-      
+
       // Clear local storage
       localStorage.clear();
       window.location.reload();
@@ -133,11 +133,10 @@ export default function Profile() {
               <button
                 key={level}
                 onClick={() => setSensitivity(level)}
-                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors min-h-[44px] ${
-                  sensitivity === level
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors min-h-[44px] ${sensitivity === level
                     ? 'bg-[var(--color-calm-600)] text-white'
                     : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:bg-[var(--bg-primary)]'
-                }`}
+                  }`}
               >
                 {level === 'low' && 'Low'}
                 {level === 'med' && 'Medium'}
@@ -167,11 +166,10 @@ export default function Profile() {
               <button
                 key={r}
                 onClick={() => setRole(r)}
-                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors min-h-[44px] ${
-                  role === r
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors min-h-[44px] ${role === r
                     ? 'bg-[var(--color-calm-600)] text-white'
                     : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:bg-[var(--bg-primary)]'
-                }`}
+                  }`}
               >
                 {r === 'student' ? 'Student' : 'Teacher'}
               </button>
@@ -259,11 +257,10 @@ export default function Profile() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
           onClick={handleSave}
-          className={`w-full py-4 rounded-xl font-medium transition-colors min-h-[44px] ${
-            saved
+          className={`w-full py-4 rounded-xl font-medium transition-colors min-h-[44px] ${saved
               ? 'bg-[var(--color-calm-700)] text-[var(--color-calm-300)]'
               : 'bg-[var(--color-calm-600)] text-white hover:bg-[var(--color-calm-500)]'
-          }`}
+            }`}
         >
           {saved ? '✓ Saved' : 'Save Changes'}
         </motion.button>
@@ -325,7 +322,7 @@ export default function Profile() {
           transition={{ delay: 0.8 }}
           className="p-4 bg-[var(--bg-card)] rounded-xl text-center"
         >
-          <p className="text-[var(--text-primary)] font-medium">Whisper Lite</p>
+          <p className="text-[var(--text-primary)] font-medium">Learno</p>
           <p className="text-[var(--text-muted)] text-sm mt-1">
             Quiet courage, powered by AI.
           </p>

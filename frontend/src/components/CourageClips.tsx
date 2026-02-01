@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Mic, Square, Play, Pause, Trash2, Plus, Sparkles, Clock, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { FloatingMascot } from "@/components/Mascot"
 import {
   saveAffirmation,
   getAffirmations,
@@ -132,11 +133,11 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange, onSa
 
     // Play the clip
     setPlayingClipId(id)
-    
+
     try {
       // Mark as played in backend
       await markAffirmationPlayed(id)
-      
+
       // Update local state
       const updatedClips = clips.map((c) =>
         c.id === id ? { ...c, timesPlayed: c.timesPlayed + 1 } : c
@@ -149,10 +150,10 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange, onSa
 
     // Play audio
     if (clip.audioUrl) {
-      const audioUrl = clip.audioUrl.startsWith("http") 
-        ? clip.audioUrl 
+      const audioUrl = clip.audioUrl.startsWith("http")
+        ? clip.audioUrl
         : getAudioUrl(clip.audioUrl.replace(/^.*\//, ""))
-      
+
       if (!audioRef.current) {
         audioRef.current = new Audio()
       }
@@ -221,14 +222,14 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange, onSa
     if (!selectedTrigger || recordingTime === 0) return
 
     setIsSaving(true)
-    
+
     try {
       // Use the suggested affirmation as the text
       const affirmationText = recordedText || currentAffirmation
 
       // Generate TTS audio for the affirmation
       const ttsResult = await textToSpeech(affirmationText)
-      
+
       if (!ttsResult.success || !ttsResult.audioPath) {
         throw new Error(ttsResult.error || "TTS failed")
       }
@@ -292,9 +293,16 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange, onSa
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">Courage Clips</h2>
-          <p className="text-sm text-muted-foreground">Your voice, your strength</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Courage Clips</h2>
+            <p className="text-sm text-muted-foreground">Your voice, your strength</p>
+          </div>
+          <FloatingMascot
+            variant="small"
+            className="relative hidden md:flex"
+            message="You're brave! 💪"
+          />
         </div>
         {!showNewClipForm && (
           <Button
@@ -377,8 +385,8 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange, onSa
                       isSaving
                         ? "bg-muted text-muted-foreground cursor-not-allowed"
                         : isRecording
-                        ? "bg-destructive text-destructive-foreground"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90"
+                          ? "bg-destructive text-destructive-foreground"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90"
                     )}
                   >
                     {isSaving ? (
@@ -394,11 +402,11 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange, onSa
                   </button>
                   <div className="text-center mt-4">
                     <p className="text-sm font-medium text-foreground">
-                      {isSaving 
-                        ? "Creating your clip..." 
-                        : isRecording 
-                        ? `Recording... ${recordingTime}s` 
-                        : "Tap to record"}
+                      {isSaving
+                        ? "Creating your clip..."
+                        : isRecording
+                          ? `Recording... ${recordingTime}s`
+                          : "Tap to record"}
                     </p>
                     {isRecording && !isSaving && (
                       <p className="text-xs text-muted-foreground mt-1">

@@ -1,11 +1,11 @@
 {
-  "name": "Whisper Lite",
-  "short_name": "Whisper",
+  "name": "Learno",
+  "short_name": "Learno",
   "description": "Quiet courage, powered by AI. A companion for neurodivergent students.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a2818",
-  "theme_color": "#0a2818",
+  "background_color": "#e8f5e9",
+  "theme_color": "#22c55e",
   "orientation": "portrait",
   "icons": [
     {

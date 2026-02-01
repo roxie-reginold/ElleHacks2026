@@ -7,6 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Camera } from 'lucide-react';
 
 export type DisplayEmotion = 'sad' | 'happy' | 'confused';
 
@@ -39,12 +40,6 @@ function mapExpressionsToDisplay(expressions: ExpressionScores): { label: Displa
   return { label: 'confused', confidence: maxScore };
 }
 
-const SUPPORT_LINES: Record<DisplayEmotion, string> = {
-  happy: "It's okay to feel this way.",
-  sad: "It's okay to feel this way.",
-  confused: "It's okay to feel this way.",
-};
-
 export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEmotionCheckProps) {
   const [expanded, setExpanded] = useState(false);
   const [permission, setPermission] = useState<'not-asked' | 'granted' | 'denied'>('not-asked');
@@ -52,6 +47,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
   const [modelError, setModelError] = useState<string | null>(null);
   const [emotion, setEmotion] = useState<{ label: DisplayEmotion; confidence: number } | null>(null);
   const [noFace, setNoFace] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
@@ -126,7 +122,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
     };
   }, [expanded]);
 
-  // Request camera when models are ready (don't require videoRef — video is rendered when modelsLoaded)
+  // Request camera when models are ready
   useEffect(() => {
     if (!expanded || !modelsLoaded || !faceApiRef.current) return;
 
@@ -148,8 +144,6 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
         if (!cancelled) setPermission('denied');
         return;
       }
-
-      // Inference loop starts after stream is attached to video (see effect below)
     })();
 
     return () => {
@@ -158,14 +152,14 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
     };
   }, [expanded, modelsLoaded, stopCamera]);
 
-  // Attach stream to video once we have both (runs after permission === 'granted' and video is mounted)
+  // Attach stream to video once we have both
   useEffect(() => {
     if (permission !== 'granted' || !streamRef.current || !videoRef.current) return;
 
     const video = videoRef.current;
     const stream = streamRef.current;
     video.srcObject = stream;
-    video.play().catch(() => {});
+    video.play().catch(() => { });
 
     const faceapi = faceApiRef.current;
     if (!faceapi) return;
@@ -192,7 +186,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
         const { label, confidence } = mapExpressionsToDisplay(scores);
         setEmotion({ label, confidence });
 
-        // Pause to let the user see their emotion, then trigger breathing (once per bout)
+        // Trigger breathing prompt for sad or confused emotions via parent component
         const triggerLabel = label === 'sad' || label === 'confused' ? label : null;
         if (triggerLabel) {
           if (breathingTriggeredForRef.current === triggerLabel) {
@@ -201,6 +195,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
             breathingDelayTimeoutRef.current = setTimeout(() => {
               breathingDelayTimeoutRef.current = null;
               breathingTriggeredForRef.current = triggerLabel;
+              // Call parent to show the breathing prompt overlay
               onEmotionChangeRef.current?.(triggerLabel);
             }, PAUSE_BEFORE_BREATHING_MS);
           }
@@ -230,7 +225,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
         intervalRef.current = null;
       }
     };
-  }, [permission, onEmotionChange]);
+  }, [permission]);
 
   // Pause when tab is hidden
   useEffect(() => {
@@ -273,7 +268,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [expanded, modelsLoaded]);
 
-  // Entry: collapsed button
+  // Entry: collapsed button - matching the green theme design
   if (!expanded) {
     return (
       <motion.div
@@ -281,54 +276,63 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
         animate={{ opacity: 1 }}
         className={className ?? 'mt-6'}
       >
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] transition-colors min-h-[52px]"
-          aria-label="Open Mood Analyser — camera and face emotion"
-        >
-          <span className="text-2xl" aria-hidden>📷</span>
-          <span className="font-medium">Mood Analyser</span>
-        </button>
-        <p className="text-center text-[var(--text-muted)] text-xs mt-2">
-          Tap to use your camera and see how you might be feeling. Stays on this device — nothing is saved or sent.
-        </p>
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-foreground">Mood Analyser</h3>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Use your camera to see how you might be feeling. Stays on this device — nothing is saved or sent.
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl bg-secondary border border-border text-foreground hover:bg-secondary/80 hover:border-primary/30 transition-all min-h-[52px] group"
+            aria-label="Open Mood Analyser — camera and face emotion"
+          >
+            <Camera className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+            <span className="font-medium">Mood Analyser</span>
+          </button>
+          <p className="text-center text-muted-foreground text-xs mt-2">
+            Tap to use your camera and see how you might be feeling. Stays on this device — nothing is saved or sent.
+          </p>
+        </div>
       </motion.div>
     );
   }
 
-  // Expanded: camera + emotion panel
+  // Expanded: camera + emotion panel - matching green theme design
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
-      className="p-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)]"
+      className="rounded-2xl border border-border bg-card p-5"
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-medium text-[var(--text-primary)]">Mood Analyser</span>
+        <span className="font-semibold text-foreground">Mood Analyser</span>
         <button
           type="button"
           onClick={close}
-          className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] underline"
+          className="text-sm text-primary hover:text-primary/80 transition-colors underline underline-offset-2"
         >
           Stop camera
         </button>
       </div>
 
       {modelError && (
-        <p className="text-sm text-red-500 mb-3">{modelError}</p>
+        <p className="text-sm text-destructive mb-3">{modelError}</p>
       )}
 
       {permission === 'denied' && (
-        <p className="text-sm text-[var(--text-muted)] mb-3">
+        <p className="text-sm text-muted-foreground mb-3">
           Camera access was denied. You can still use Context Listen.
         </p>
       )}
 
       {modelsLoaded && (
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative shrink-0 rounded-lg overflow-hidden bg-black aspect-square max-w-[240px] mx-auto sm:mx-0">
+          {/* Camera view */}
+          <div className="relative shrink-0 rounded-xl overflow-hidden bg-muted aspect-square max-w-[200px] mx-auto sm:mx-0 border border-border">
             <video
               ref={videoRef}
               playsInline
@@ -339,11 +343,16 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
               aria-label="Live camera preview for Mood Analyser"
             />
             {permission === 'not-asked' && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-white text-sm">
-                Requesting camera…
+              <div className="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-sm">
+                <div className="flex flex-col items-center gap-2">
+                  <Camera className="h-8 w-8" />
+                  <span>Requesting camera…</span>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Emotion result */}
           <div className="flex-1 flex flex-col justify-center min-w-0">
             {permission === 'granted' ? (
               <AnimatePresence mode="wait">
@@ -353,7 +362,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="text-[var(--text-muted)] text-sm"
+                    className="text-muted-foreground text-sm"
                   >
                     No face detected. Move into frame.
                   </motion.p>
@@ -365,29 +374,35 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
-                    <p className="text-[var(--text-primary)] font-medium capitalize">
+                    <p className="text-foreground font-medium capitalize text-lg">
+                      {emotion.label === 'happy' && '😊 '}
+                      {emotion.label === 'sad' && '😔 '}
+                      {emotion.label === 'confused' && '😕 '}
                       {emotion.label}
                       {emotion.confidence >= 0.5 && (
-                        <span className="text-[var(--text-muted)] font-normal ml-1">
+                        <span className="text-muted-foreground font-normal text-sm ml-2">
                           ({Math.round(emotion.confidence * 100)}%)
                         </span>
                       )}
                     </p>
-                    <p className="text-[var(--text-muted)] text-sm mt-1">
-                      {SUPPORT_LINES[emotion.label]}
+                    <p className="text-muted-foreground text-sm mt-1">
+                      It's okay to feel this way.
                     </p>
                   </motion.div>
                 )}
               </AnimatePresence>
             ) : permission === 'not-asked' ? (
-              <p className="text-[var(--text-muted)] text-sm">Allow camera to see your mood.</p>
+              <p className="text-muted-foreground text-sm">Allow camera to see your mood.</p>
             ) : null}
           </div>
         </div>
       )}
 
       {expanded && permission === 'not-asked' && !modelError && !modelsLoaded && (
-        <p className="text-sm text-[var(--text-muted)]">Loading face analysis…</p>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <span className="text-sm">Loading face analysis…</span>
+        </div>
       )}
     </motion.div>
   );

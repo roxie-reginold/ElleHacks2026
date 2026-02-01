@@ -1,114 +1,123 @@
+/* Google Fonts - Outfit for a modern, friendly feel */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 @import "tailwindcss";
 @import "tw-animate-css";
-
-/* Geist fonts (Fontsource CDN) */
-@font-face {
-  font-family: "Geist";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url(https://cdn.jsdelivr.net/fontsource/fonts/geist:vf@latest/latin-wght-normal.woff2) format("woff2-variations");
-}
-@font-face {
-  font-family: "Geist Mono";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url(https://cdn.jsdelivr.net/fontsource/fonts/geist-mono:vf@latest/latin-wght-normal.woff2) format("woff2-variations");
-}
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.98 0.005 260);
-  --foreground: oklch(0.18 0.02 260);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 260);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 260);
-  --primary: oklch(0.70 0.12 180);
-  --primary-foreground: oklch(0.98 0.005 260);
-  --secondary: oklch(0.95 0.01 260);
-  --secondary-foreground: oklch(0.30 0.02 260);
-  --muted: oklch(0.95 0.01 260);
-  --muted-foreground: oklch(0.50 0.02 260);
-  --accent: oklch(0.85 0.08 90);
-  --accent-foreground: oklch(0.25 0.02 90);
-  --destructive: oklch(0.65 0.20 25);
-  --destructive-foreground: oklch(0.98 0.01 25);
-  --border: oklch(0.90 0.01 260);
-  --input: oklch(0.92 0.01 260);
-  --ring: oklch(0.70 0.12 180);
-  --chart-1: oklch(0.70 0.12 180);
-  --chart-2: oklch(0.75 0.10 200);
-  --chart-3: oklch(0.85 0.08 90);
-  --chart-4: oklch(0.70 0.12 340);
-  --chart-5: oklch(0.65 0.10 280);
+  /* Soft green theme inspired by the design */
+  --background: #e8f5e9;
+  --background-soft: #f1f8e9;
+  --foreground: #1b4332;
+  --card: #ffffff;
+  --card-foreground: #1b4332;
+  --popover: #ffffff;
+  --popover-foreground: #1b4332;
+
+  /* Primary green palette */
+  --primary: #22c55e;
+  --primary-light: #4ade80;
+  --primary-dark: #16a34a;
+  --primary-foreground: #ffffff;
+
+  /* Secondary/muted */
+  --secondary: #dcfce7;
+  --secondary-foreground: #166534;
+  --muted: #f0fdf4;
+  --muted-foreground: #6b7280;
+
+  /* Accent colors */
+  --accent: #86efac;
+  --accent-foreground: #14532d;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  /* Borders & inputs */
+  --border: #d1fae5;
+  --input: #bbf7d0;
+  --ring: #22c55e;
+
+  /* Chart colors */
+  --chart-1: #22c55e;
+  --chart-2: #4ade80;
+  --chart-3: #86efac;
+  --chart-4: #16a34a;
+  --chart-5: #15803d;
+
   --radius: 1rem;
-  --sidebar: oklch(0.98 0.005 260);
-  --sidebar-foreground: oklch(0.18 0.02 260);
-  --sidebar-primary: oklch(0.70 0.12 180);
-  --sidebar-primary-foreground: oklch(0.98 0.005 260);
-  --sidebar-accent: oklch(0.95 0.01 260);
-  --sidebar-accent-foreground: oklch(0.30 0.02 260);
-  --sidebar-border: oklch(0.90 0.01 260);
-  --sidebar-ring: oklch(0.70 0.12 180);
-  --calm: oklch(0.70 0.12 180);
-  --calm-foreground: oklch(0.98 0.005 260);
-  --warm: oklch(0.85 0.10 90);
-  --warm-foreground: oklch(0.25 0.02 90);
-  --gentle: oklch(0.75 0.12 340);
-  --gentle-foreground: oklch(0.98 0.01 340);
-  --success: oklch(0.70 0.15 145);
-  --success-foreground: oklch(0.98 0.01 145);
+
+  /* Sidebar */
+  --sidebar: #f0fdf4;
+  --sidebar-foreground: #1b4332;
+  --sidebar-primary: #22c55e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dcfce7;
+  --sidebar-accent-foreground: #166534;
+  --sidebar-border: #d1fae5;
+  --sidebar-ring: #22c55e;
+
+  /* Semantic colors */
+  --calm: #22c55e;
+  --calm-foreground: #ffffff;
+  --warm: #fbbf24;
+  --warm-foreground: #451a03;
+  --gentle: #f472b6;
+  --gentle-foreground: #ffffff;
+  --success: #10b981;
+  --success-foreground: #ffffff;
 }
 
 .dark {
-  --background: oklch(0.12 0.015 260);
-  --foreground: oklch(0.95 0.01 260);
-  --card: oklch(0.16 0.02 260);
-  --card-foreground: oklch(0.95 0.01 260);
-  --popover: oklch(0.16 0.02 260);
-  --popover-foreground: oklch(0.95 0.01 260);
-  --primary: oklch(0.75 0.12 180);
-  --primary-foreground: oklch(0.12 0.015 260);
-  --secondary: oklch(0.22 0.02 260);
-  --secondary-foreground: oklch(0.90 0.01 260);
-  --muted: oklch(0.22 0.02 260);
-  --muted-foreground: oklch(0.60 0.02 260);
-  --accent: oklch(0.80 0.10 90);
-  --accent-foreground: oklch(0.18 0.02 90);
-  --destructive: oklch(0.60 0.20 25);
-  --destructive-foreground: oklch(0.95 0.01 25);
-  --border: oklch(0.26 0.02 260);
-  --input: oklch(0.22 0.02 260);
-  --ring: oklch(0.75 0.12 180);
-  --chart-1: oklch(0.75 0.12 180);
-  --chart-2: oklch(0.70 0.10 200);
-  --chart-3: oklch(0.80 0.10 90);
-  --chart-4: oklch(0.70 0.12 340);
-  --chart-5: oklch(0.65 0.10 280);
-  --sidebar: oklch(0.14 0.015 260);
-  --sidebar-foreground: oklch(0.95 0.01 260);
-  --sidebar-primary: oklch(0.75 0.12 180);
-  --sidebar-primary-foreground: oklch(0.12 0.015 260);
-  --sidebar-accent: oklch(0.22 0.02 260);
-  --sidebar-accent-foreground: oklch(0.90 0.01 260);
-  --sidebar-border: oklch(0.26 0.02 260);
-  --sidebar-ring: oklch(0.75 0.12 180);
-  --calm: oklch(0.75 0.12 180);
-  --calm-foreground: oklch(0.12 0.015 260);
-  --warm: oklch(0.80 0.10 90);
-  --warm-foreground: oklch(0.18 0.02 90);
-  --gentle: oklch(0.70 0.12 340);
-  --gentle-foreground: oklch(0.95 0.01 340);
-  --success: oklch(0.70 0.15 145);
-  --success-foreground: oklch(0.12 0.01 145);
+  --background: #0f1f15;
+  --background-soft: #162920;
+  --foreground: #f0fdf4;
+  --card: #1a2e22;
+  --card-foreground: #f0fdf4;
+  --popover: #1a2e22;
+  --popover-foreground: #f0fdf4;
+  --primary: #4ade80;
+  --primary-light: #86efac;
+  --primary-dark: #22c55e;
+  --primary-foreground: #0f1f15;
+  --secondary: #1a3d2a;
+  --secondary-foreground: #bbf7d0;
+  --muted: #162920;
+  --muted-foreground: #86efac;
+  --accent: #22c55e;
+  --accent-foreground: #f0fdf4;
+  --destructive: #f87171;
+  --destructive-foreground: #0f1f15;
+  --border: #2d4a3a;
+  --input: #2d4a3a;
+  --ring: #4ade80;
+  --chart-1: #4ade80;
+  --chart-2: #22c55e;
+  --chart-3: #16a34a;
+  --chart-4: #86efac;
+  --chart-5: #a7f3d0;
+  --sidebar: #162920;
+  --sidebar-foreground: #f0fdf4;
+  --sidebar-primary: #4ade80;
+  --sidebar-primary-foreground: #0f1f15;
+  --sidebar-accent: #1a3d2a;
+  --sidebar-accent-foreground: #bbf7d0;
+  --sidebar-border: #2d4a3a;
+  --sidebar-ring: #4ade80;
+  --calm: #4ade80;
+  --calm-foreground: #0f1f15;
+  --warm: #fbbf24;
+  --warm-foreground: #0f1f15;
+  --gentle: #f472b6;
+  --gentle-foreground: #0f1f15;
+  --success: #34d399;
+  --success-foreground: #0f1f15;
 }
 
 @theme inline {
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -116,6 +125,8 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-primary-dark: var(--primary-dark);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -159,30 +170,99 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: "Outfit", sans-serif;
   }
 }
 
+/* Animations */
 @keyframes breathe-in {
-  0% { transform: scale(0.85); opacity: 0.6; }
-  100% { transform: scale(1.15); opacity: 1; }
+  0% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
 }
 
 @keyframes breathe-out {
-  0% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(0.85); opacity: 0.6; }
+  0% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
 }
 
 @keyframes pulse-ring {
-  0% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(1.05); opacity: 0.3; }
-  100% { transform: scale(1); opacity: 0.5; }
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 @keyframes wave {
-  0%, 100% { height: 8px; }
-  50% { height: 24px; }
+
+  0%,
+  100% {
+    height: 8px;
+  }
+
+  50% {
+    height: 24px;
+  }
+}
+
+@keyframes gradient-shift {
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .animate-breathe-in {
@@ -197,6 +277,145 @@
   animation: pulse-ring 2s ease-in-out infinite;
 }
 
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Card styles for the new design */
+.card-adventure {
+  @apply relative overflow-hidden rounded-2xl bg-card p-5 shadow-sm;
+  @apply border border-border hover:shadow-md transition-all duration-300;
+  @apply hover:-translate-y-0.5;
+}
+
+.card-adventure::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+}
+
+/* Progress bar styles */
+.progress-bar {
+  @apply relative h-2 w-full rounded-full bg-secondary overflow-hidden;
+}
+
+.progress-bar-fill {
+  @apply h-full rounded-full bg-gradient-to-r from-primary to-primary-light;
+  @apply transition-all duration-500 ease-out;
+}
+
+/* Donut chart component */
+.donut-chart {
+  position: relative;
+  width: 150px;
+  height: 150px;
+}
+
+/* Context clue cards */
+.context-clue-card {
+  @apply flex items-start gap-3 p-4 rounded-xl bg-muted/50;
+  @apply border border-transparent hover:border-primary/20;
+  @apply transition-all duration-200;
+}
+
+.context-clue-card.success {
+  @apply bg-primary/10 border-primary/30;
+}
+
+.context-clue-card.warning {
+  @apply bg-amber-50 border-amber-200;
+}
+
+/* Mascot image container */
+.mascot-container {
+  @apply relative flex-shrink-0;
+}
+
+.mascot-image {
+  @apply w-32 h-auto object-contain drop-shadow-lg;
+}
+
+.mascot-image-large {
+  @apply w-48 h-auto object-contain drop-shadow-xl;
+}
+
+/* Daily quest badge */
+.quest-badge {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-full;
+  @apply bg-primary/10 text-primary font-medium text-sm;
+  @apply border border-primary/20;
+}
+
+/* Level up animation */
+.level-up-text {
+  @apply text-4xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary;
+  @apply bg-clip-text text-transparent;
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Button styles */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-6 py-3;
+  @apply rounded-full bg-primary text-primary-foreground font-semibold;
+  @apply shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30;
+  @apply hover:bg-primary-dark active:scale-95;
+  @apply transition-all duration-200;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-6 py-3;
+  @apply rounded-full bg-card text-foreground font-medium;
+  @apply border border-border hover:border-primary/30;
+  @apply hover:bg-secondary active:scale-95;
+  @apply transition-all duration-200;
+}
+
+/* Insight cards */
+.insight-card {
+  @apply relative p-5 rounded-2xl bg-card;
+  @apply border border-border shadow-sm;
+  @apply hover:shadow-md transition-all duration-300;
+}
+
+.insight-card.highlight {
+  @apply border-primary/30 bg-gradient-to-br from-primary/5 to-transparent;
+}
+
+/* Emotional landscape chart */
+.emotion-donut {
+  @apply relative mx-auto;
+}
+
+/* Section headers */
+.section-header {
+  @apply text-xl font-semibold text-foreground mb-4;
+}
+
+.section-subheader {
+  @apply text-sm text-muted-foreground mb-6;
+}
+
+/* Motivational message */
+.motivation-banner {
+  @apply w-full py-4 px-6 rounded-full bg-primary text-primary-foreground;
+  @apply font-medium text-center shadow-lg shadow-primary/20;
+}
+
+/* Leaf decorations */
+.leaf-decoration {
+  @apply absolute opacity-20 text-primary;
+}
+
 #root {
   min-height: 100vh;
   display: flex;
@@ -204,6 +423,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -216,4 +436,18 @@
 *:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-secondary rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/30 rounded-full hover:bg-primary/50;
 }

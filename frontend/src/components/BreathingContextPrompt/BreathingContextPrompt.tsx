@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { Wind } from "lucide-react"
+import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getContextPrompt } from "@/types/breathing"
 import type { ContextLabel } from "@/types/breathing"
@@ -38,8 +38,8 @@ export function BreathingContextPrompt({
     >
       <div className="flex flex-col items-center gap-8 text-center max-w-sm w-full">
         <div className="space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
-            <Wind className="h-8 w-8 text-primary" aria-hidden />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center">
+            <Sparkles className="h-10 w-10 text-primary" aria-hidden />
           </div>
           <h1
             id="breathing-context-heading"
