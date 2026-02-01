@@ -97,7 +97,9 @@ cp .env.example .env
 
 ### Running the App
 
-1. Start the backend server:
+**Both servers must be running** for Quick Help and the teacher dashboard to work.
+
+1. Start the backend server (default port 3001):
 ```bash
 cd backend
 npm run dev
@@ -109,21 +111,29 @@ cd frontend
 npm run dev
 ```
 
-3. Open http://localhost:5173 in your browser
+3. Open http://localhost:5173 in your browser. The frontend uses `VITE_API_URL` (see `frontend/.env`) to talk to the backend; if you see "Failed to load help requests" or "Couldn't send", ensure the backend is running and `frontend/.env` has `VITE_API_URL=http://localhost:3001`.
 
 ### Environment Variables
+
+**Backend** (in project root `.env` or `backend/.env`):
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | No | Backend port (default: 3001) |
-| `MONGODB_URI` | No | MongoDB connection string (works without) |
+| `MONGODB_URI` or `MONGO_URI` | No | MongoDB connection string (works without) |
 | `OPENAI_API_KEY` | No | For audio transcription and analysis |
 | `ELEVENLABS_API_KEY` | No | For voice synthesis |
 | `TWILIO_ACCOUNT_SID` | No | For SMS alerts |
 | `TWILIO_AUTH_TOKEN` | No | For SMS alerts |
 | `TWILIO_PHONE_NUMBER` | No | For SMS alerts |
 
-**Note**: The app works in demo mode without any API keys configured.
+**Frontend** (in `frontend/.env`):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_API_URL` | Yes for help/teacher features | Backend URL, e.g. `http://localhost:3001` |
+
+**Note**: The app works in demo mode without API keys. Quick Help and teacher dashboard need the backend running and `VITE_API_URL` set so the frontend can reach it.
 
 ## Project Structure
 

@@ -17,23 +17,6 @@ import { cn } from "@/lib/utils"
 import { incrementFocusMoments } from "@/services/api"
 import type { ContextLabel } from "@/types/breathing"
 
-const sampleWeeklyStats = {
-  moodData: [
-    { day: "Mon", mood: 4 },
-    { day: "Tue", mood: 5 },
-    { day: "Wed", mood: 3 },
-    { day: "Thu", mood: 4 },
-    { day: "Fri", mood: 4 },
-    { day: "Sat", mood: 5 },
-    { day: "Sun", mood: 4 },
-  ],
-  breathingBreaks: 12,
-  winsLogged: 8,
-  signalsSent: 3,
-  topMood: "Good",
-  insight: "You're calmer on Tuesdays. Group work days seem to go better when you use your breathing exercises first.",
-}
-
 export default function App() {
   const { user, updatePreferences } = useUser()
   const navigate = useNavigate()
@@ -102,6 +85,14 @@ export default function App() {
     }
   }, [])
 
+  /** Add a clip to parent state (e.g. when CourageClips saves via onSaveClip, or future "Add clip" flow). Avoids duplicate if already in list. */
+  const handleSaveClip = useCallback((clip: CourageClip | Omit<CourageClip, "id" | "createdAt">) => {
+    const newClip: CourageClip = 'id' in clip && clip.id
+      ? clip as CourageClip
+      : { ...clip, id: Date.now().toString(), createdAt: new Date() } as CourageClip
+    setCourageClips(prev => prev.some(c => c.id === newClip.id) ? prev : [...prev, newClip])
+  }, [])
+
   const handleBreathingContextStart = useCallback(() => {
     setBreathingContextExercise(true)
   }, [])
@@ -114,10 +105,13 @@ export default function App() {
   const handleBreathingContextComplete = useCallback(() => {
     setBreathingContextFlow(null)
     setBreathingContextExercise(false)
+    setActiveTab("home")
   }, [])
 
+  /** Optional parent reaction when student sends a signal (e.g. analytics). TeacherSignal handles API internally. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for future use (e.g. track signal sent)
   const handleTeacherSignal = useCallback((_type: "question" | "slow" | "help") => {
-    // Teacher signal is now handled by the component itself via API
+    // Reserved for future use (e.g. track signal sent)
   }, [])
 
   const handleClipsChange = useCallback((clips: CourageClip[]) => {
@@ -258,6 +252,9 @@ export default function App() {
                 todaysMood={todaysMood}
               />
 
+
+              <TeacherSignal onSignal={handleTeacherSignal} />
+
               <div className="rounded-2xl border border-border bg-card p-5">
                 <h3 className="font-semibold text-foreground mb-1">Mood Analyser</h3>
                 <p className="text-sm text-muted-foreground mb-4">
@@ -266,10 +263,6 @@ export default function App() {
                 <FaceEmotionCheck className="mt-0" onEmotionChange={handleEmotionChange} />
               </div>
 
-              <TeacherSignal
-                studentId={userId}
-                onSignal={handleTeacherSignal}
-              />
             </div>
 
             <div className="lg:w-96 lg:sticky lg:top-20 lg:self-start">
@@ -397,7 +390,7 @@ export default function App() {
         )}
 
         {activeTab === "insights" && (
-          <WeeklyDashboard stats={sampleWeeklyStats} />
+          <WeeklyDashboard />
         )}
 
         {activeTab === "courage" && (
@@ -405,6 +398,7 @@ export default function App() {
             userId={userId}
             clips={courageClips}
             onClipsChange={handleClipsChange}
+            onSaveClip={handleSaveClip}
           />
         )}
 
@@ -417,7 +411,9 @@ export default function App() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1">
-                <TeacherSignal studentId={userId} onSignal={handleTeacherSignal} />
+
+                <TeacherSignal onSignal={handleTeacherSignal} />
+
               </div>
 
               <div className="lg:col-span-1 rounded-2xl border border-border bg-card p-5">

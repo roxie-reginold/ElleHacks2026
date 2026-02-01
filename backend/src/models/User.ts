@@ -15,6 +15,7 @@ export interface IUser extends Document {
   trustedAdult?: ITrustedAdult;
   focusMoments: number;
   journalPrompts: string[];
+  role?: 'student' | 'teacher';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,7 @@ const UserSchema = new Schema<IUser>(
     trustedAdult: { type: TrustedAdultSchema },
     focusMoments: { type: Number, default: 0 },
     journalPrompts: { type: [String], default: [] },
+    role: { type: String, enum: ['student', 'teacher'] },
   },
   {
     timestamps: true,

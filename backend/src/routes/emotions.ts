@@ -58,38 +58,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/emotions/:userId
- * Get emotion logs for a user (last 7 days by default)
- * Query: ?days=7&context=group+work
- */
-router.get('/:userId', async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const days = parseInt(req.query.days as string) || 7;
-    const context = req.query.context as string;
-
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-    const query: any = {
-      userId,
-      timestamp: { $gte: since },
-    };
-
-    if (context) {
-      query.context = context;
-    }
-
-    const logs = await EmotionLog.find(query).sort({ timestamp: -1 });
-    res.json(logs);
-  } catch (error) {
-    console.error('Emotion logs fetch error:', error);
-    res.status(500).json({ error: 'Failed to fetch emotion logs' });
-  }
-});
-
 // ─────────────────────────────────────
-// WINS
+// WINS (must be before /:userId to avoid "wins" matching as userId)
 // ─────────────────────────────────────
 
 /**
@@ -156,7 +126,7 @@ router.get('/wins/:userId', async (req: Request, res: Response) => {
 });
 
 // ─────────────────────────────────────
-// WEEKLY INSIGHTS
+// WEEKLY INSIGHTS (must be before /:userId to avoid "insights" matching as userId)
 // ─────────────────────────────────────
 
 /**
@@ -231,6 +201,40 @@ router.get('/insights/:userId', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Insights fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch insights' });
+  }
+});
+
+// ─────────────────────────────────────
+// EMOTION LOGS BY USER (/:userId last so /wins and /insights match first)
+// ─────────────────────────────────────
+
+/**
+ * GET /api/emotions/:userId
+ * Get emotion logs for a user (last 7 days by default)
+ * Query: ?days=7&context=group+work
+ */
+router.get('/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const days = parseInt(req.query.days as string) || 7;
+    const context = req.query.context as string;
+
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const query: any = {
+      userId,
+      timestamp: { $gte: since },
+    };
+
+    if (context) {
+      query.context = context;
+    }
+
+    const logs = await EmotionLog.find(query).sort({ timestamp: -1 });
+    res.json(logs);
+  } catch (error) {
+    console.error('Emotion logs fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch emotion logs' });
   }
 });
 

@@ -39,6 +39,8 @@ interface CourageClipsProps {
   userId: string
   clips?: CourageClip[]
   onClipsChange?: (clips: CourageClip[]) => void
+  /** Optional: called when a new clip is saved (parent can sync state or show toast) */
+  onSaveClip?: (clip: CourageClip) => void
 }
 
 const triggerLabels = [
@@ -59,7 +61,7 @@ const affirmations = [
   "I've got this",
 ]
 
-export function CourageClips({ userId, clips: externalClips, onClipsChange }: CourageClipsProps) {
+export function CourageClips({ userId, clips: externalClips, onClipsChange, onSaveClip }: CourageClipsProps) {
   const [clips, setClips] = useState<CourageClip[]>(externalClips || [])
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
@@ -257,6 +259,7 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange }: Co
       const newClips = [newClip, ...clips]
       setClips(newClips)
       onClipsChange?.(newClips)
+      onSaveClip?.(newClip)
 
       // Reset form
       setShowNewClipForm(false)
@@ -269,7 +272,7 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange }: Co
     } finally {
       setIsSaving(false)
     }
-  }, [selectedTrigger, recordingTime, currentAffirmation, recordedText, userId, clips, onClipsChange])
+  }, [selectedTrigger, recordingTime, currentAffirmation, recordedText, userId, clips, onClipsChange, onSaveClip])
 
   const resetForm = () => {
     setShowNewClipForm(false)

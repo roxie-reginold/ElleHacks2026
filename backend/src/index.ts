@@ -7,9 +7,10 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
 
-// Load environment variables: try backend/.env first, then repo root .env
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load environment variables (try project root, then backend folder)
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 
 // Import routes
 import analyzeRoutes from './routes/analyze';
@@ -18,6 +19,9 @@ import dashboardRoutes from './routes/dashboard';
 import profileRoutes from './routes/profile';
 import alertRoutes from './routes/alert';
 import contextCluesRoutes from './routes/contextClues';
+
+import helpRequestRoutes from './routes/helpRequest';
+
 import emotionsRoutes from './routes/emotions';
 import teacherRequestsRoutes from './routes/teacherrequests';
 import affirmationsRoutes from './routes/affirmations';
@@ -37,6 +41,7 @@ const realtimeClients = new Map<string, ElevenLabsRealtimeClient | GeminiLiveCli
 
 // Gemini analysis interval (batched every 5 seconds)
 const GEMINI_ANALYSIS_INTERVAL = 5000;
+
 
 const app = express();
 const httpServer = createServer(app);
@@ -62,15 +67,21 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/alert', alertRoutes);
 app.use('/api/context-clues', contextCluesRoutes);
+
+app.use('/api', helpRequestRoutes);
+
 app.use('/api/emotions', emotionsRoutes);
 app.use('/api/teacher-requests', teacherRequestsRoutes);
 app.use('/api/affirmations', affirmationsRoutes);
 app.use('/api/tts', textToSpeechRoutes);
 
-// Health check endpoint
+
+// Health check endpoint (includes port so you can confirm what the server is listening on)
 app.get('/api/health', (req, res) => {
-  res.json({
+
+  res.json({ 
     status: 'ok',
+    port: PORT,
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     websocket: 'enabled',
@@ -482,7 +493,9 @@ io.on('connection', (socket) => {
 
 // Connect to MongoDB (optional - works without it using in-memory storage)
 const connectDB = async () => {
-  const mongoUri = process.env.MONGODB_URI;
+
+  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  
 
   if (mongoUri) {
     try {
