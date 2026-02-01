@@ -6,11 +6,11 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
-// Load environment variables from parent directory
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load environment variables from backend directory
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 console.log('🔑 ELEVENLABS_API_KEY loaded:', process.env.ELEVENLABS_API_KEY ? 'Yes (starts with ' + process.env.ELEVENLABS_API_KEY.substring(0, 4) + ')' : 'No');
-console.log('📂 Loading .env from:', path.resolve(__dirname, '../../.env'));
+console.log('📂 Loading .env from:', path.resolve(__dirname, '../.env'));
 
 // Import routes
 import analyzeRoutes from './routes/analyze';
@@ -236,6 +236,7 @@ io.on('connection', (socket) => {
             audioEvents: events,
             speakers: 0,
             assessment: socialResult.assessment,
+            tone: socialResult.tone,
             summary: socialResult.summary,
             triggers: socialResult.triggers,
             confidence: socialResult.confidence,
@@ -409,6 +410,7 @@ io.on('connection', (socket) => {
         audioEvents: audioResult.audioEvents,
         speakers: audioResult.speakers.length,
         assessment: socialResult.assessment,
+        tone: socialResult.tone,
         summary: socialResult.summary,
         triggers: socialResult.triggers,
         confidence: socialResult.confidence,

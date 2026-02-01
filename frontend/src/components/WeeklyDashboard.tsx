@@ -13,6 +13,7 @@ interface WeeklyStats {
 
 interface WeeklyDashboardProps {
   stats: WeeklyStats
+  period?: { start: string; end: string }
 }
 
 const moodEmojis: Record<number, string> = {
@@ -23,15 +24,27 @@ const moodEmojis: Record<number, string> = {
   5: "\u{1F929}",
 }
 
-export function WeeklyDashboard({ stats }: WeeklyDashboardProps) {
+function formatPeriod(start: string, end: string): string {
+  try {
+    const s = new Date(start)
+    const e = new Date(end)
+    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" }
+    return `${s.toLocaleDateString(undefined, opts)} – ${e.toLocaleDateString(undefined, opts)}`
+  } catch {
+    return ""
+  }
+}
+
+export function WeeklyDashboard({ stats, period }: WeeklyDashboardProps) {
   const maxMood = 5
+  const periodLabel = period ? formatPeriod(period.start, period.end) : "This week"
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-foreground">Your Week</h2>
-          <p className="text-sm text-muted-foreground">Jan 27 - Feb 2</p>
+          <p className="text-sm text-muted-foreground">{periodLabel || "This week"}</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4" />
@@ -58,10 +71,12 @@ export function WeeklyDashboard({ stats }: WeeklyDashboardProps) {
 
         <div className="rounded-2xl border border-border bg-card p-5">
           <div className="flex items-center gap-4">
-            <span className="text-4xl">{moodEmojis[4]}</span>
+            <span className="text-4xl">{topMoodEmoji[stats.topMood] ?? moodEmojis[3]}</span>
             <div>
               <p className="font-medium text-foreground">Most common: {stats.topMood}</p>
-              <p className="text-sm text-muted-foreground">You felt good most days</p>
+              <p className="text-sm text-muted-foreground">
+                {stats.topMood !== "—" ? "Based on your check-ins this week" : "Log your mood to see patterns"}
+              </p>
             </div>
           </div>
         </div>
