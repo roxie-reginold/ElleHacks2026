@@ -5,6 +5,7 @@ import { Navigation } from "@/components/ui/Navigation"
 import { BreathingExercise } from "@/components/BreathingExercise"
 import { AudioAnalyzer } from "@/components/AudioAnalyzer"
 import { MoodTracker, type Mood } from "@/components/MoodTracker"
+import { FaceEmotionCheck } from "@/components/FaceEmotionCheck"
 import { TeacherSignal } from "@/components/TeacherSignal"
 import { CourageClips, type CourageClip } from "@/components/CourageClips"
 import { WeeklyDashboard } from "@/components/WeeklyDashboard"
@@ -203,6 +204,14 @@ export default function App() {
                 onMoodSelect={handleMoodSelect} 
                 todaysMood={todaysMood} 
               />
+
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <h3 className="font-semibold text-foreground mb-1">Mood Analyser</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Use your camera to see how you might be feeling. Stays on this device — nothing is saved or sent.
+                </p>
+                <FaceEmotionCheck className="mt-0" />
+              </div>
 
               <TeacherSignal 
                 studentId={userId}

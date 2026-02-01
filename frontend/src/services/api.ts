@@ -27,20 +27,25 @@ interface RecapResponse {
 
 interface DashboardResponse {
   stats: {
-    totalSessions: number;
-    calmMoments: number;
-    triggersEncountered: number;
-    breathingUsed: number;
-    journalsSaved: number;
+    totalSessions?: number;
+    calmMoments?: number;
+    triggersEncountered?: number;
+    breathingUsed?: number;
+    journalsSaved?: number;
+    totalEmotionLogs?: number;
+    totalWins?: number;
+    totalBreathingBreaks?: number;
   };
-  insights: Array<{
+  insights?: Array<{
     text: string;
     type: 'positive' | 'neutral' | 'suggestion';
   }>;
-  topTriggers: Array<{
+  topTriggers?: Array<{
     type: string;
     count: number;
   }>;
+  suggestions?: Array<string | { text: string }>;
+  patterns?: { calmestTimeOfDay?: string };
 }
 
 interface ProfileData {

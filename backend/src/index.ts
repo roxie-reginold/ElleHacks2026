@@ -6,7 +6,8 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
-// Load environment variables from parent directory
+// Load environment variables: try backend/.env first, then repo root .env
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Import routes
