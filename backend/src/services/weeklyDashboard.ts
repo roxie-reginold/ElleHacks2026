@@ -3,10 +3,10 @@ import { EmotionLog, Win, WeeklyInsight } from '../models/EmotionLog';
 import Session from '../models/Session';
 
 // Initialize OpenRouter client (OpenAI-compatible) for Gemini
-const openrouter = process.env.OPEN_ROUTER_API_KEY
+const openrouter = process.env.OPENROUTER_API_KEY
   ? new OpenAI({
       baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPEN_ROUTER_API_KEY,
+      apiKey: process.env.OPENROUTER_API_KEY,
       defaultHeaders: {
         'HTTP-Referer': 'https://whisper-lite.app',
         'X-Title': 'Whisper Lite',
@@ -168,7 +168,7 @@ export async function generateGeminiInsights(
 ): Promise<{ insights: string[]; suggestions: string[] }> {
   if (!openrouter) {
     console.error('No OpenRouter API key configured - insights unavailable');
-    throw new Error('OpenRouter API key not configured. Please set OPEN_ROUTER_API_KEY environment variable.');
+    throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY environment variable.');
   }
 
   const systemPrompt = `You are a supportive school counselor analyzing a student's weekly emotional data for a mental wellness app.

@@ -14,10 +14,10 @@ import OpenAI from 'openai';
 import type { Speaker } from './elevenLabsAudioService';
 
 // Initialize OpenRouter client (OpenAI-compatible)
-const openrouter = process.env.OPEN_ROUTER_API_KEY
+const openrouter = process.env.OPENROUTER_API_KEY
   ? new OpenAI({
       baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPEN_ROUTER_API_KEY,
+      apiKey: process.env.OPENROUTER_API_KEY,
       defaultHeaders: {
         'HTTP-Referer': 'https://whisper-lite.app',
         'X-Title': 'Whisper Lite',
@@ -34,9 +34,12 @@ const GEMINI_MODEL = 'google/gemini-2.5-flash';
 
 export type EnvironmentAssessment = 'friendly' | 'neutral' | 'tense' | 'unknown';
 
+export type ToneLabel = 'calm' | 'neutral' | 'friendly' | 'urgent' | 'frustrated' | 'excited' | 'angry' | 'sarcastic' | 'unknown';
+
 export interface SocialContextResult {
   success: boolean;
   assessment: EnvironmentAssessment;
+  tone?: ToneLabel;          // Explicit tone of the speech (e.g. angry, calm, sarcastic)
   summary: string;           // Calming explanation for the user
   triggers: string[];        // Detected anxiety triggers
   confidence: number;        // 0-1 confidence in assessment
@@ -101,6 +104,7 @@ export async function analyzeSocialContext(
     return {
       success: false,
       assessment: 'unknown',
+      tone: 'unknown',
       summary: 'Analysis unavailable - please configure OpenRouter API key',
       triggers: [],
       confidence: 0,
@@ -135,7 +139,7 @@ Provide a calming interpretation. Remember:
 - Help them understand the context is likely normal/safe
 - Be reassuring but honest
 
-Respond in JSON format with: assessment, summary, triggers, confidence, recommendations`;
+Respond in JSON format with: assessment, tone, summary, triggers, confidence, recommendations`;
 
     // Call Gemini via OpenRouter
     const response = await openrouter.chat.completions.create({
@@ -165,6 +169,7 @@ Respond in JSON format with: assessment, summary, triggers, confidence, recommen
 
     // Validate and normalize response
     const assessment = validateAssessment(parsed.assessment);
+    const tone = validateTone(parsed.tone);
     const summary = parsed.summary || generateDefaultSummary(audioEvents, transcript);
     const triggers = Array.isArray(parsed.triggers) ? parsed.triggers : [];
     const confidence = typeof parsed.confidence === 'number' 
@@ -174,11 +179,12 @@ Respond in JSON format with: assessment, summary, triggers, confidence, recommen
       ? parsed.recommendations 
       : [];
 
-    console.log(`Social context analysis: ${assessment} (${(confidence * 100).toFixed(0)}% confidence)`);
+    console.log(`Social context analysis: ${assessment}, tone: ${tone} (${(confidence * 100).toFixed(0)}% confidence)`);
 
     return {
       success: true,
       assessment,
+      tone,
       summary,
       triggers,
       confidence,
@@ -191,6 +197,7 @@ Respond in JSON format with: assessment, summary, triggers, confidence, recommen
     return {
       success: false,
       assessment: 'neutral',
+      tone: 'unknown',
       summary: "I couldn't fully analyze the audio, but classrooms typically have normal sounds that aren't directed at you.",
       triggers: [],
       confidence: 0.3,
@@ -214,6 +221,15 @@ function validateAssessment(value: any): EnvironmentAssessment {
     return value;
   }
   return 'neutral';  // Safe default
+}
+
+const VALID_TONES: ToneLabel[] = ['calm', 'neutral', 'friendly', 'urgent', 'frustrated', 'excited', 'angry', 'sarcastic', 'unknown'];
+
+function validateTone(value: any): ToneLabel {
+  if (VALID_TONES.includes(value)) {
+    return value;
+  }
+  return 'unknown';
 }
 
 /**
