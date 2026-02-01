@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Navigation } from "@/components/ui/Navigation"
 import { BreathingExercise } from "@/components/BreathingExercise"
+
 import { BreathingContextPrompt } from "@/components/BreathingContextPrompt"
 import { AudioAnalyzer } from "@/components/AudioAnalyzer"
 import { MoodTracker, type Mood } from "@/components/MoodTracker"
@@ -13,9 +14,10 @@ import { CourageClips, type CourageClip } from "@/components/CourageClips"
 import { WeeklyDashboard } from "@/components/WeeklyDashboard"
 import { ContextClueOverlay } from "@/components/ContextClueOverlay"
 import { useUser } from "@/context/UserContext"
+import { useContextListener } from "@/hooks/useContextListener"
 import { Wind, Sparkles, Heart, MessageCircle, X, Smile, Volume2, Users, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { incrementFocusMoments } from "@/services/api"
+import { incrementFocusMoments, getWeeklyDashboard, type WeeklyDashboardApiResponse } from "@/services/api"
 
 interface ContextClue {
   id: string
@@ -24,21 +26,21 @@ interface ContextClue {
   suggestion?: string
 }
 
-const sampleWeeklyStats = {
+const defaultWeeklyStats = {
   moodData: [
-    { day: "Mon", mood: 4 },
-    { day: "Tue", mood: 5 },
+    { day: "Mon", mood: 3 },
+    { day: "Tue", mood: 3 },
     { day: "Wed", mood: 3 },
-    { day: "Thu", mood: 4 },
-    { day: "Fri", mood: 4 },
-    { day: "Sat", mood: 5 },
-    { day: "Sun", mood: 4 },
+    { day: "Thu", mood: 3 },
+    { day: "Fri", mood: 3 },
+    { day: "Sat", mood: 3 },
+    { day: "Sun", mood: 3 },
   ],
-  breathingBreaks: 12,
-  winsLogged: 8,
-  signalsSent: 3,
-  topMood: "Good",
-  insight: "You're calmer on Tuesdays. Group work days seem to go better when you use your breathing exercises first.",
+  breathingBreaks: 0,
+  winsLogged: 0,
+  signalsSent: 0,
+  topMood: "—",
+  insight: "Log your mood and use the app this week to see insights here.",
 }
 
 const typeConfig = {
@@ -75,7 +77,7 @@ const typeConfig = {
 export default function App() {
   const { user } = useUser()
   const userId = user?._id || 'demo-user'
-  
+
   const [activeTab, setActiveTab] = useState("home")
   const [contextClues, setContextClues] = useState<ContextClue[]>([])
   const [currentClue, setCurrentClue] = useState<ContextClue | null>(null)
@@ -88,6 +90,46 @@ export default function App() {
   const [isListening, setIsListening] = useState(false)
   const [stressAlert, setStressAlert] = useState(false)
   const [courageClips, setCourageClips] = useState<CourageClip[]>([])
+
+  // Real-time ElevenLabs transcription + Gemini tone/social cue analysis
+  const {
+    isStreaming,
+    liveTranscript,
+    currentContext,
+    startListening: startRealListening,
+    stopListening: stopRealListening,
+    connect,
+  } = useContextListener({
+    userId,
+    autoConnect: false,
+    mode: 'streaming',
+  })
+
+  // Sync listening state
+  useEffect(() => {
+    setIsListening(isStreaming)
+  }, [isStreaming])
+
+  // Fetch real dashboard when Insights tab is shown
+  useEffect(() => {
+    if (activeTab !== "insights") return
+    setDashboardError(null)
+    setDashboardLoading(true)
+    getWeeklyDashboard(userId)
+      .then((data) => setDashboardData(data))
+      .catch((err) => setDashboardError(err instanceof Error ? err.message : "Failed to load dashboard"))
+      .finally(() => setDashboardLoading(false))
+  }, [activeTab, userId])
+
+  const handleStartListening = async () => {
+    connect()
+    await new Promise(resolve => setTimeout(resolve, 500))
+    await startRealListening()
+  }
+
+  const handleStopListening = () => {
+    stopRealListening()
+  }
 
   const handleContextClue = useCallback((clue: ContextClue) => {
     const clueWithSuggestion = {
@@ -248,18 +290,59 @@ export default function App() {
                   <h2 className="font-semibold text-foreground">Context Listener</h2>
                   <p className="text-sm text-muted-foreground">Helps understand social cues</p>
                 </div>
-                <AudioAnalyzer
-                  onContextClue={handleContextClue}
-                  onStressDetected={handleStressDetected}
-                  onListeningChange={handleListeningChange}
-                />
+                <div className="flex flex-col items-center">
+                  <div className="relative mb-6">
+                    <div className="flex items-center justify-center gap-[3px] h-16">
+                      {Array(16).fill(0).map((_, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            "w-1 rounded-full transition-all duration-100",
+                            isListening ? "bg-primary" : "bg-muted"
+                          )}
+                          style={{
+                            height: `${isListening ? Math.random() * 28 + 4 : 4}px`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={isListening ? handleStopListening : handleStartListening}
+                    className={cn(
+                      "relative flex h-20 w-20 items-center justify-center rounded-full transition-all duration-300 active:scale-95",
+                      isListening
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    )}
+                  >
+                    {isListening ? (
+                      <Volume2 className="h-7 w-7" />
+                    ) : (
+                      <Volume2 className="h-7 w-7 opacity-50" />
+                    )}
+
+                    {isListening && (
+                      <>
+                        <span className="absolute inset-0 rounded-full bg-primary/30 animate-ping" />
+                        <span className="absolute -inset-2 rounded-full border-2 border-primary/20 animate-pulse" />
+                      </>
+                    )}
+                  </button>
+
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    {isListening ? "Listening for social cues..." : "Tap to start context listener"}
+                  </p>
+                </div>
               </div>
 
-              <MoodTracker 
+              <MoodTracker
                 userId={userId}
-                onMoodSelect={handleMoodSelect} 
-                todaysMood={todaysMood} 
+                onMoodSelect={handleMoodSelect}
+                todaysMood={todaysMood}
               />
+
 
               <div className="rounded-2xl border border-border bg-card p-5">
                 <h3 className="font-semibold text-foreground mb-1">Mood Analyser</h3>
@@ -270,8 +353,9 @@ export default function App() {
               </div>
 
               <TeacherSignal 
+
                 studentId={userId}
-                onSignal={handleTeacherSignal} 
+                onSignal={handleTeacherSignal}
               />
             </div>
 
@@ -333,7 +417,55 @@ export default function App() {
                   </div>
                 )}
 
-                {isListening && contextClues.length === 0 && (
+                {isListening && liveTranscript && (
+                  <div className="mb-4 rounded-xl border border-primary/30 bg-primary/5 p-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse" />
+                      <p className="text-xs font-medium text-primary">Live Transcript</p>
+                    </div>
+                    <p className="text-sm text-foreground leading-relaxed">
+                      {liveTranscript}
+                      <span className="animate-pulse">|</span>
+                    </p>
+                  </div>
+                )}
+
+                {isListening && currentContext && (currentContext.summary || currentContext.tone || currentContext.assessment) && (
+                  <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="h-4 w-4 text-emerald-500" />
+                      <p className="text-xs font-medium text-emerald-600">Tone & social cue (Gemini)</p>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      {(currentContext.tone && currentContext.tone !== 'unknown') && (
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Tone:</span>{' '}
+                          <span className="font-medium capitalize">{currentContext.tone}</span>
+                        </p>
+                      )}
+                      <p className="text-muted-foreground">
+                        <span className="text-muted-foreground">Vibe:</span>{' '}
+                        <span className="capitalize">{currentContext.assessment}</span>
+                      </p>
+                      {currentContext.summary && (
+                        <p className="text-foreground leading-relaxed">{currentContext.summary}</p>
+                      )}
+                      {currentContext.triggers && currentContext.triggers.length > 0 && (
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Noted:</span>{' '}
+                          {currentContext.triggers.join(', ')}
+                        </p>
+                      )}
+                      {currentContext.recommendations && currentContext.recommendations.length > 0 && (
+                        <p className="text-emerald-700/90 italic text-xs mt-1">
+                          Try: {currentContext.recommendations[0]}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {isListening && !liveTranscript && contextClues.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center mb-3">
                       <Volume2 className="h-6 w-6 text-primary animate-pulse" />
@@ -342,7 +474,7 @@ export default function App() {
                       Listening for audio...
                     </p>
                     <p className="text-xs text-primary/70 mt-1">
-                      Context clues will appear as detected
+                      Speak and your transcript will appear
                     </p>
                   </div>
                 )}
@@ -398,7 +530,39 @@ export default function App() {
         )}
 
         {activeTab === "insights" && (
-          <WeeklyDashboard stats={sampleWeeklyStats} />
+          <>
+            {dashboardLoading && (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <p className="mt-3 text-sm">Loading your week…</p>
+              </div>
+            )}
+            {dashboardError && !dashboardLoading && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-700">
+                {dashboardError}
+              </div>
+            )}
+            {!dashboardLoading && !dashboardError && (
+              <WeeklyDashboard
+                stats={
+                  dashboardData
+                    ? {
+                        moodData: dashboardData.moodDataByDay,
+                        breathingBreaks: dashboardData.stats.totalBreathingBreaks,
+                        winsLogged: dashboardData.stats.totalWins,
+                        signalsSent: 0,
+                        topMood: dashboardData.topMood,
+                        insight:
+                          dashboardData.insights?.[0] ??
+                          dashboardData.suggestions?.[0] ??
+                          defaultWeeklyStats.insight,
+                      }
+                    : defaultWeeklyStats
+                }
+                period={dashboardData?.period}
+              />
+            )}
+          </>
         )}
 
         {activeTab === "courage" && (

@@ -43,6 +43,7 @@ export interface ContextUpdate {
   audioEvents: string[];
   speakers: number;
   assessment: EnvironmentAssessment;
+  tone?: string;
   summary: string;
   triggers: string[];
   confidence: number;
@@ -75,7 +76,7 @@ export interface UseContextListenerReturn {
   isListening: boolean;  // Alias for backward compatibility
   sessionId: string | null;
   mode: StreamingMode;
-  
+
   // Analysis data
   currentContext: ContextUpdate | null;
   recentEvents: AudioEvent[];
@@ -83,7 +84,7 @@ export interface UseContextListenerReturn {
   calmingAudio: CalmingAudio | null;
   status: StatusUpdate | null;
   error: string | null;
-  
+
   // Actions
   startListening: () => Promise<void>;
   stopListening: () => void;
@@ -91,7 +92,7 @@ export interface UseContextListenerReturn {
   disconnect: () => void;
   clearError: () => void;
   setMode: (mode: StreamingMode) => void;
-  
+
   // Audio level (for visualization)
   audioLevel: number;
 }
@@ -117,10 +118,10 @@ export function useContextListener(
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [mode, setMode] = useState<StreamingMode>(initialMode);
-  
+
   // FIX: Use ref for isStreaming to avoid stale closure in onaudioprocess callback
   const isStreamingRef = useRef(false);
-  
+
   // Analysis data
   const [currentContext, setCurrentContext] = useState<ContextUpdate | null>(null);
   const [recentEvents, setRecentEvents] = useState<AudioEvent[]>([]);
@@ -128,10 +129,10 @@ export function useContextListener(
   const [calmingAudio, setCalmingAudio] = useState<CalmingAudio | null>(null);
   const [status, setStatus] = useState<StatusUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Audio level for visualization
   const [audioLevel, setAudioLevel] = useState(0);
-  
+
   // Refs
   const socketRef = useRef<Socket | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -194,8 +195,13 @@ export function useContextListener(
 
     // Real-time transcript (~150ms latency)
     socket.on('transcript:realtime', (data: RealtimeTranscript) => {
+      console.log(`📡 Frontend received transcript: "${data.text}" (final: ${data.isFinal})`);
       if (data.isFinal) {
-        setLiveTranscript(prev => prev + ' ' + data.text);
+        setLiveTranscript(prev => {
+          const updated = prev + ' ' + data.text;
+          console.log(`✅ Updated live transcript (final): "${updated}"`);
+          return updated;
+        });
       } else {
         // Show partial transcript
         setLiveTranscript(prev => {
@@ -217,9 +223,11 @@ export function useContextListener(
 
     // Context updates (periodic, every 5s from Gemini)
     socket.on('context:update', (data: ContextUpdate) => {
+      console.log(`📊 Frontend received context update - Transcript: "${data.transcript}"`);
       setCurrentContext(data);
       if (data.transcript) {
         setLiveTranscript(data.transcript);
+        console.log(`📝 Live transcript updated from context: "${data.transcript}"`);
       }
     });
 
@@ -292,14 +300,21 @@ export function useContextListener(
       // Buffer size of 4096 samples at 16kHz = ~256ms chunks
       const bufferSize = 4096;
       processorRef.current = audioContextRef.current.createScriptProcessor(bufferSize, 1, 1);
-      
+
+      let packetCount = 0;
       processorRef.current.onaudioprocess = (event) => {
         // FIX: Use ref instead of state to avoid stale closure
-        // The callback captures isStreaming=false at creation time, but ref is always current
         if (!socketRef.current?.connected || !isStreamingRef.current) return;
-        
+
+        // Log every 50 packets (~12 seconds)
+        packetCount++;
+        if (packetCount % 50 === 0) {
+          console.log(`🎤 Sending audio packet #${packetCount}`);
+        }
+
+
         const inputBuffer = event.inputBuffer.getChannelData(0);
-        
+
         // Convert Float32 to Int16 (PCM 16-bit)
         const pcmData = new Int16Array(inputBuffer.length);
         for (let i = 0; i < inputBuffer.length; i++) {
@@ -307,7 +322,7 @@ export function useContextListener(
           const s = Math.max(-1, Math.min(1, inputBuffer[i]));
           pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
-        
+
         // Send raw PCM audio to backend
         socketRef.current?.emit('audio:stream', pcmData.buffer);
       };
@@ -330,11 +345,11 @@ export function useContextListener(
 
       // FIX: Set ref BEFORE starting session so onaudioprocess callback sees it immediately
       isStreamingRef.current = true;
-      
+
       // Start session and streaming
       socketRef.current.emit('session:start');
       socketRef.current.emit('stream:start');
-      
+
       setIsStreaming(true);
       setError(null);
       setLiveTranscript('');
@@ -349,7 +364,7 @@ export function useContextListener(
   const stopStreaming = useCallback(() => {
     // FIX: Set ref to false FIRST to stop audio processing immediately
     isStreamingRef.current = false;
-    
+
     // Stop processor
     if (processorRef.current) {
       processorRef.current.disconnect();
@@ -408,7 +423,7 @@ export function useContextListener(
       audioContextRef.current = new AudioContext();
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
-      
+
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyserRef.current);
 
@@ -443,7 +458,7 @@ export function useContextListener(
       mediaRecorder.onstop = async () => {
         if (chunks.length > 0 && socketRef.current?.connected) {
           const audioBlob = new Blob(chunks, { type: mimeType });
-          
+
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64Audio = (reader.result as string).split(',')[1];
@@ -565,7 +580,7 @@ export function useContextListener(
     isListening: isStreaming,  // Alias for backward compatibility
     sessionId,
     mode,
-    
+
     // Analysis data
     currentContext,
     recentEvents,
@@ -573,7 +588,7 @@ export function useContextListener(
     calmingAudio,
     status,
     error,
-    
+
     // Actions
     startListening,
     stopListening,
@@ -581,7 +596,7 @@ export function useContextListener(
     disconnect,
     clearError,
     setMode,
-    
+
     // Audio level
     audioLevel,
   };

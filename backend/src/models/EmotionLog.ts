@@ -18,13 +18,9 @@ const EmotionLogSchema = new Schema<IEmotionLog>(
     userId: { type: String, required: true, index: true },
     sessionId: { type: String, index: true },
     timestamp: { type: Date, default: Date.now },
-    emoji: {
-      type: String,
-      required: true,
-      enum: ['😌', '😣', '😊', '😤', '😶', '😰', '🙂', '😬'],
-    },
+    emoji: { type: String, required: true },
     context: { type: String },
-    stressLevel: { type: Number, min: 1, max: 10 },
+    stressLevel: { type: Number, min: 0, max: 10 },
     notes: { type: String },
   },
   { timestamps: true }

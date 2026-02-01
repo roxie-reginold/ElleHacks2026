@@ -6,6 +6,7 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
+
 // Load environment variables: try backend/.env first, then repo root .env
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -27,11 +28,12 @@ import { processContextAudio } from './services/elevenLabsAudioService';
 import { analyzeSocialContext, getQuickEventInterpretation } from './services/geminiSocialService';
 import { generateCalmingPrompt } from './services/elevenLabsService';
 import { ElevenLabsRealtimeClient, createRealtimeClient } from './services/elevenLabsRealtimeService';
+import { GeminiLiveClient, createGeminiLiveClient } from './services/geminiLiveService';
 import ContextEvent from './models/ContextEvent';
 import { seedContextClues } from './models/ContextClue';
 
-// Store active realtime clients per socket
-const realtimeClients = new Map<string, ElevenLabsRealtimeClient>();
+// Store active realtime clients per socket (supporting both ElevenLabs and Gemini)
+const realtimeClients = new Map<string, ElevenLabsRealtimeClient | GeminiLiveClient>();
 
 // Gemini analysis interval (batched every 5 seconds)
 const GEMINI_ANALYSIS_INTERVAL = 5000;
@@ -67,8 +69,8 @@ app.use('/api/tts', textToSpeechRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     websocket: 'enabled',
@@ -81,10 +83,10 @@ app.get('/api/health', (req, res) => {
 
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
-  
+
   let currentSessionId: string | null = null;
   let userId: string = 'demo-user';
-  let realtimeClient: ElevenLabsRealtimeClient | null = null;
+  let realtimeClient: ElevenLabsRealtimeClient | GeminiLiveClient | null = null;
   let geminiAnalysisTimer: NodeJS.Timeout | null = null;
   let accumulatedEvents: string[] = [];
   let lastAnalysisTime = 0;
@@ -106,20 +108,20 @@ io.on('connection', (socket) => {
   socket.on('session:end', () => {
     console.log(`🛑 Listening session ended: ${currentSessionId}`);
     currentSessionId = null;
-    
+
     // Clean up realtime client
     if (realtimeClient) {
       realtimeClient.disconnect();
       realtimeClients.delete(socket.id);
       realtimeClient = null;
     }
-    
+
     // Clear Gemini analysis timer
     if (geminiAnalysisTimer) {
       clearInterval(geminiAnalysisTimer);
       geminiAnalysisTimer = null;
     }
-    
+
     accumulatedEvents = [];
     socket.emit('session:ended');
   });
@@ -129,48 +131,50 @@ io.on('connection', (socket) => {
   // ============================================================================
   socket.on('stream:start', async () => {
     console.log(`🎙️ Starting realtime stream for ${socket.id}`);
-    
+
     // Create realtime client if not exists
     if (!realtimeClient) {
       realtimeClient = createRealtimeClient();
-      
+
       if (!realtimeClient) {
         socket.emit('error', { message: 'ElevenLabs API key not configured' });
         return;
       }
-      
+
       realtimeClients.set(socket.id, realtimeClient);
-      
+
       // Set up event handlers for real-time data
       realtimeClient.on('connected', () => {
         socket.emit('stream:connected');
         console.log(`✅ Realtime stream connected for ${socket.id}`);
       });
-      
+
       realtimeClient.on('disconnected', (reason) => {
         socket.emit('stream:disconnected', { reason });
         console.log(`❌ Realtime stream disconnected for ${socket.id}: ${reason}`);
       });
-      
+
       realtimeClient.on('error', (error) => {
         socket.emit('error', { message: error.message });
         console.error(`Realtime stream error for ${socket.id}:`, error);
       });
-      
+
       // Handle real-time transcripts (~150ms latency)
       realtimeClient.on('transcript', (data) => {
+        console.log(`📝 Transcript received: "${data.text}" (isFinal: ${data.isFinal})`);
         socket.emit('transcript:realtime', {
           text: data.text,
           isFinal: data.isFinal,
           words: data.words,
           timestamp: Date.now(),
         });
+        console.log(`✅ Transcript emitted to client ${socket.id}`);
       });
-      
+
       // Handle audio events INSTANTLY (~150ms latency)
       realtimeClient.on('audioEvent', (event) => {
         const interpretation = getQuickEventInterpretation(event.type);
-        
+
         // Emit immediately for instant feedback
         socket.emit('event:detected', {
           event: event.type,
@@ -178,13 +182,13 @@ io.on('connection', (socket) => {
           confidence: event.confidence,
           timestamp: event.timestamp,
         });
-        
+
         // Accumulate for Gemini analysis
         if (!accumulatedEvents.includes(event.type)) {
           accumulatedEvents.push(event.type);
         }
       });
-      
+
       // Handle speaker changes
       realtimeClient.on('speakerChange', (change) => {
         socket.emit('speaker:change', {
@@ -193,7 +197,7 @@ io.on('connection', (socket) => {
         });
       });
     }
-    
+
     // Connect to ElevenLabs Realtime
     try {
       // FIX: Add null check - realtimeClient could be null if connection failed or was disconnected
@@ -202,41 +206,42 @@ io.on('connection', (socket) => {
         return;
       }
       await realtimeClient.connect();
-      realtimeClient.clearAccumulated();
+      (realtimeClient as ElevenLabsRealtimeClient).clearAccumulated();
       accumulatedEvents = [];
-      
+
       // Start periodic Gemini analysis (every 5 seconds)
       geminiAnalysisTimer = setInterval(async () => {
         if (!realtimeClient) return;
-        
-        const transcript = realtimeClient.getAccumulatedTranscript();
-        const events = realtimeClient.getDetectedEvents();
-        
+
+        const transcript = (realtimeClient as ElevenLabsRealtimeClient).getAccumulatedTranscript();
+        const events = (realtimeClient as ElevenLabsRealtimeClient).getDetectedEvents();
+
         // Only analyze if we have new data
         if (transcript.length === 0 && events.length === 0) return;
         if (Date.now() - lastAnalysisTime < GEMINI_ANALYSIS_INTERVAL - 1000) return;
-        
+
         lastAnalysisTime = Date.now();
-        
+
         try {
           const socialResult = await analyzeSocialContext({
             transcript,
             audioEvents: events,
             speakers: [],  // Speaker info from diarization
           });
-          
+
           socket.emit('context:update', {
             timestamp: Date.now(),
             transcript,
             audioEvents: events,
             speakers: 0,
             assessment: socialResult.assessment,
+            tone: socialResult.tone,
             summary: socialResult.summary,
             triggers: socialResult.triggers,
             confidence: socialResult.confidence,
             recommendations: socialResult.recommendations,
           });
-          
+
           // Save to database
           if (mongoose.connection.readyState === 1 && currentSessionId) {
             try {
@@ -258,7 +263,7 @@ io.on('connection', (socket) => {
               console.warn('Could not save context event to DB:', dbError);
             }
           }
-          
+
           // Generate calming audio if stress detected
           if (socialResult.assessment === 'tense' || socialResult.triggers.length > 0) {
             const ttsResult = await generateCalmingPrompt(socialResult.summary);
@@ -270,12 +275,12 @@ io.on('connection', (socket) => {
               });
             }
           }
-          
+
         } catch (analysisError) {
           console.warn('Gemini analysis error:', analysisError);
         }
       }, GEMINI_ANALYSIS_INTERVAL);
-      
+
     } catch (error: any) {
       socket.emit('error', { message: error.message || 'Failed to connect to realtime stream' });
     }
@@ -284,24 +289,29 @@ io.on('connection', (socket) => {
   // Stop real-time streaming
   socket.on('stream:stop', () => {
     console.log(`🛑 Stopping realtime stream for ${socket.id}`);
-    
+
     if (realtimeClient) {
       realtimeClient.disconnect();
       realtimeClients.delete(socket.id);
       realtimeClient = null;
     }
-    
+
     if (geminiAnalysisTimer) {
       clearInterval(geminiAnalysisTimer);
       geminiAnalysisTimer = null;
     }
-    
+
     accumulatedEvents = [];
     socket.emit('stream:stopped');
   });
 
   // Receive streaming audio data (raw PCM)
+  let packetCount = 0;
   socket.on('audio:stream', (data: ArrayBuffer | Buffer | string) => {
+    packetCount++;
+    if (packetCount % 50 === 0) {
+      console.log(`🔊 Received audio packet #${packetCount} from ${socket.id}`);
+    }
     if (realtimeClient && realtimeClient.isActive()) {
       // Forward audio directly to ElevenLabs Realtime
       let audioBuffer: Buffer;
@@ -322,20 +332,20 @@ io.on('connection', (socket) => {
   // ============================================================================
 
   // Process incoming audio chunk
-  socket.on('audio:chunk', async (data: { 
+  socket.on('audio:chunk', async (data: {
     audio: string;  // Base64 encoded audio
     duration?: number;
     decibels?: number;
   }) => {
     console.log(`🎤 Received audio chunk from ${socket.id}`);
-    
+
     try {
       // Decode base64 audio to buffer
       const audioBuffer = Buffer.from(data.audio, 'base64');
-      
+
       // Step 1: Process audio with ElevenLabs (Voice Isolator + Scribe v2)
       socket.emit('status', { step: 'processing', message: 'Cleaning audio...' });
-      
+
       const audioResult = await processContextAudio(audioBuffer, {
         skipIsolation: false,  // Use voice isolation for cleaner audio
         numSpeakers: 5,        // Expect teacher + students
@@ -358,7 +368,7 @@ io.on('connection', (socket) => {
 
       // Step 2: Analyze social context with Gemini
       socket.emit('status', { step: 'analyzing', message: 'Understanding context...' });
-      
+
       const socialResult = await analyzeSocialContext({
         transcript: audioResult.transcript,
         audioEvents: audioResult.audioEvents,
@@ -391,12 +401,15 @@ io.on('connection', (socket) => {
       }
 
       // Step 4: Emit analysis result to client
+      console.log(`📊 Context update - Transcript: "${audioResult.transcript}"`);
+      console.log(`   Events: ${audioResult.audioEvents.join(', ')}, Speakers: ${audioResult.speakers.length}`);
       socket.emit('context:update', {
         timestamp: Date.now(),
         transcript: audioResult.transcript,
         audioEvents: audioResult.audioEvents,
         speakers: audioResult.speakers.length,
         assessment: socialResult.assessment,
+        tone: socialResult.tone,
         summary: socialResult.summary,
         triggers: socialResult.triggers,
         confidence: socialResult.confidence,
@@ -406,9 +419,9 @@ io.on('connection', (socket) => {
       // Step 5: Generate calming audio if stress detected (optional)
       if (socialResult.assessment === 'tense' || socialResult.triggers.length > 0) {
         socket.emit('status', { step: 'generating', message: 'Creating calming response...' });
-        
+
         const ttsResult = await generateCalmingPrompt(socialResult.summary);
-        
+
         if (ttsResult.success && ttsResult.audioPath) {
           const filename = path.basename(ttsResult.audioPath);
           socket.emit('calming:audio', {
@@ -422,7 +435,7 @@ io.on('connection', (socket) => {
 
     } catch (error: any) {
       console.error('Audio processing error:', error);
-      socket.emit('error', { 
+      socket.emit('error', {
         message: error.message || 'Processing failed',
         step: 'processing',
       });
@@ -452,14 +465,14 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`🔌 Client disconnected: ${socket.id}`);
     currentSessionId = null;
-    
+
     // Clean up realtime client on disconnect
     if (realtimeClient) {
       realtimeClient.disconnect();
       realtimeClients.delete(socket.id);
       realtimeClient = null;
     }
-    
+
     if (geminiAnalysisTimer) {
       clearInterval(geminiAnalysisTimer);
       geminiAnalysisTimer = null;
@@ -470,7 +483,7 @@ io.on('connection', (socket) => {
 // Connect to MongoDB (optional - works without it using in-memory storage)
 const connectDB = async () => {
   const mongoUri = process.env.MONGODB_URI;
-  
+
   if (mongoUri) {
     try {
       // Recommended connection options for MongoDB
@@ -480,7 +493,7 @@ const connectDB = async () => {
         socketTimeoutMS: 45000,    // Close sockets after 45s of inactivity
       });
       console.log('✅ Connected to MongoDB');
-      
+
       // Seed context clues after connection is established
       await seedContextClues();
     } catch (error) {
@@ -511,7 +524,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 // Start server
 const startServer = async () => {
   await connectDB();
-  
+
   // Use httpServer instead of app.listen for Socket.io support
   httpServer.listen(PORT, () => {
     console.log(`

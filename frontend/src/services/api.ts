@@ -48,6 +48,29 @@ interface DashboardResponse {
   patterns?: { calmestTimeOfDay?: string };
 }
 
+/** Response from GET /api/dashboard/weekly (real MongoDB + Gemini insights) */
+export interface WeeklyDashboardApiResponse {
+  period: { start: string; end: string };
+  stats: {
+    totalEmotionLogs: number;
+    totalWins: number;
+    totalBreathingBreaks: number;
+    averageStressLevel: number;
+  };
+  patterns: {
+    calmestTimeOfDay: string;
+    mostStressfulContext: string;
+    timeDistribution: { morning: number; afternoon: number; evening: number };
+    contextPatterns: Record<string, number>;
+  };
+  moodDataByDay: { day: string; mood: number }[];
+  topMood: string;
+  insights: string[];
+  suggestions: string[];
+  recentEmotionLogs?: unknown[];
+  recentWins?: unknown[];
+}
+
 interface ProfileData {
   _id?: string;
   displayName: string;
@@ -227,10 +250,12 @@ export async function generateRecap(
 }
 
 /**
- * Get weekly dashboard data
+ * Get weekly dashboard data (MongoDB emotion logs + Gemini insights)
  */
-export async function getWeeklyDashboard(userId: string): Promise<DashboardResponse> {
-  const response = await fetch(`${API_BASE}/api/dashboard/weekly?userId=${userId}`);
+export async function getWeeklyDashboard(userId: string, weekOffset?: number): Promise<WeeklyDashboardApiResponse> {
+  const params = new URLSearchParams({ userId });
+  if (weekOffset != null) params.set('weekOffset', String(weekOffset));
+  const response = await fetch(`${API_BASE}/api/dashboard/weekly?${params}`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch dashboard');
