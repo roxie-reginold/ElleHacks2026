@@ -8,10 +8,10 @@ import {
   Eye,
   X,
   ArrowLeft,
+  MessageSquare,
 } from 'lucide-react';
 import { useClassSession } from '@/context/ClassSessionContext';
 import { getHelpRequests, updateHelpRequest, type HelpRequestItem, type HelpRequestType } from '@/services/api';
-import { TeacherSuggestionPanel } from '@/components/TeacherSuggestionPanel';
 
 const POLL_INTERVAL_MS = 8000;
 const DEFAULT_SESSION_OPTIONS = [
@@ -119,7 +119,21 @@ export default function TeacherDashboard() {
     confused: requests.filter((r) => r.type === 'confused').length,
     slower: requests.filter((r) => r.type === 'slower').length,
   };
+  const total = summary.help + summary.confused + summary.slower;
   const unseenCount = requests.filter((r) => !r.seenAt).length;
+
+  function getSuggestion(): string {
+    if (total === 0) return '';
+    const parts: string[] = [];
+    if (summary.help) parts.push(`${summary.help} said help`);
+    if (summary.confused) parts.push(`${summary.confused} confused`);
+    if (summary.slower) parts.push(`${summary.slower} asked to slow down`);
+    const line = parts.join(', ');
+    if (summary.slower > 0 || total >= 3) {
+      return `${line}. Consider talking a bit slower or pausing to check in.`;
+    }
+    return `${line}. You might want to check in with the class.`;
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -186,9 +200,27 @@ export default function TeacherDashboard() {
         )}
 
         {requests.length > 0 && (
-          <p className="mb-4 text-sm text-slate-600">
-            Today: {summary.help} help · {summary.confused} confused · {summary.slower} slower
-          </p>
+          <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {total} {total === 1 ? 'student' : 'students'} need attention
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {summary.help} help · {summary.confused} confused · {summary.slower} slower
+                  {unseenCount > 0 && (
+                    <span className="font-medium text-amber-600"> · {unseenCount} new</span>
+                  )}
+                </p>
+                <p className="mt-2 text-sm text-slate-700">
+                  {getSuggestion()}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
         {loading ? (
@@ -255,13 +287,6 @@ export default function TeacherDashboard() {
           </ul>
         )}
       </main>
-
-      <TeacherSuggestionPanel
-        summary={summary}
-        requestCount={requests.length}
-        unseenCount={unseenCount}
-        classSessionId={classSessionId}
-      />
     </div>
   );
 }

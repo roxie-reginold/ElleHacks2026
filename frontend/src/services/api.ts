@@ -1,8 +1,9 @@
 // Must be full URL (e.g. http://localhost:3001). Port-only values are normalized for dev.
+// Default to backend dev server so REST and Socket.io both hit the same origin when VITE_API_URL is unset.
 const raw = (import.meta.env.VITE_API_URL || '').trim();
 const API_BASE =
   !raw
-    ? ''
+    ? 'http://localhost:3001'
     : raw.startsWith('http')
       ? raw.replace(/\/$/, '')
       : `http://localhost:${raw.replace(/^:/, '')}`;
@@ -422,7 +423,7 @@ export async function deleteProfile(userId: string): Promise<{ success: boolean;
 /**
  * Increment focus moments counter
  */
-export async function incrementFocusMoments(userId: string): Promise<ProfileData> {
+export async function incrementFocusMoments(userId: string): Promise<{ focusMoments: number }> {
   const response = await fetch(`${API_BASE}/api/profile/${userId}/focus-moments`, {
     method: 'PATCH',
   });

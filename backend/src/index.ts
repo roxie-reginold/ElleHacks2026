@@ -80,9 +80,8 @@ app.use('/api/tts', textToSpeechRoutes);
 app.get('/api/health', (req, res) => {
 
   res.json({ 
-    status: 'ok', 
-    port: PORT,
     status: 'ok',
+    port: PORT,
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     websocket: 'enabled',

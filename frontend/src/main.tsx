@@ -25,7 +25,6 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-
     <BrowserRouter>
       <UserProvider>
         <ClassSessionProvider>
@@ -44,6 +43,5 @@ createRoot(document.getElementById('root')!).render(
         </ClassSessionProvider>
       </UserProvider>
     </BrowserRouter>
-
   </StrictMode>,
 )

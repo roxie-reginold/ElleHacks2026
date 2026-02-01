@@ -1,9 +1,12 @@
 "use client"
 
+import { useEffect } from "react"
 import { Wind } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getContextPrompt } from "@/types/breathing"
 import type { ContextLabel } from "@/types/breathing"
+
+const AUTO_ADVANCE_MS = 5000
 
 export interface BreathingContextPromptProps {
   context: ContextLabel
@@ -17,6 +20,14 @@ export function BreathingContextPrompt({
   onMaybeLater,
 }: BreathingContextPromptProps) {
   const message = getContextPrompt(context)
+
+  // Auto-advance to breathing exercise after 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onStart()
+    }, AUTO_ADVANCE_MS)
+    return () => clearTimeout(timer)
+  }, [onStart])
 
   return (
     <div

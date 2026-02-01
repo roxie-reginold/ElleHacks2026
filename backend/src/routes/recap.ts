@@ -47,6 +47,27 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/recap/user/:userId
+ * Get all recaps for a user (must be before /:sessionId so "user" is not matched as sessionId)
+ */
+router.get('/user/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { limit = 10 } = req.query;
+
+    const recaps = await Recap.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit as string))
+      .select('sessionId summaryText keyTerms readingLevelGrade createdAt');
+
+    res.json(recaps);
+  } catch (error) {
+    console.error('Recaps fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch recaps' });
+  }
+});
+
+/**
  * GET /api/recap/:sessionId
  * Get an existing recap by session ID
  */
@@ -76,27 +97,6 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Recap fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch recap' });
-  }
-});
-
-/**
- * GET /api/recap/user/:userId
- * Get all recaps for a user
- */
-router.get('/user/:userId', async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const { limit = 10 } = req.query;
-
-    const recaps = await Recap.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit as string))
-      .select('sessionId summaryText keyTerms readingLevelGrade createdAt');
-
-    res.json(recaps);
-  } catch (error) {
-    console.error('Recaps fetch error:', error);
-    res.status(500).json({ error: 'Failed to fetch recaps' });
   }
 });
 

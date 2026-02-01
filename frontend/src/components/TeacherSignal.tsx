@@ -8,6 +8,8 @@ import { useUser } from "@/context/UserContext"
 import { useClassSession } from "@/context/ClassSessionContext"
 import { createHelpRequest, type HelpRequestType } from "@/services/api"
 
+export type TeacherSignalType = "question" | "slow" | "help"
+
 const signals: {
   type: HelpRequestType
   icon: typeof HelpCircle
@@ -36,7 +38,18 @@ const signals: {
 ]
 
 
-export function TeacherSignal() {
+interface TeacherSignalProps {
+  /** Optional: parent callback when a signal is sent (e.g. analytics) */
+  onSignal?: (type: TeacherSignalType) => void
+}
+
+const typeToSignal: Record<HelpRequestType, TeacherSignalType> = {
+  help: "help",
+  confused: "question",
+  slower: "slow",
+}
+
+export function TeacherSignal({ onSignal }: TeacherSignalProps = {}) {
   const { user } = useUser()
   const { classSessionId, courseId } = useClassSession()
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -67,6 +80,7 @@ export function TeacherSignal() {
           courseId: courseId || undefined,
           anonymous: false,
         })
+        onSignal?.(typeToSignal[type])
         showToast("Sent. Your teacher will see it.")
       } catch (err) {
         console.error("Help request failed:", err)
@@ -77,63 +91,47 @@ export function TeacherSignal() {
         setTimeout(() => setShowConfirmation(false), 2000)
       }
     },
-    [user?._id, classSessionId, courseId, sending, showToast]
+    [user?._id, classSessionId, courseId, sending, showToast, onSignal]
   )
 
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 h-full">
-      <div className="mb-4">
-        <h3 className="font-semibold text-foreground">Quick help</h3>
-        <p className="text-sm text-muted-foreground">
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="mb-2">
+        <h3 className="font-semibold text-foreground text-sm">Quick help</h3>
+        <p className="text-xs text-muted-foreground">
           Tap once — your teacher will see it. Private.
         </p>
       </div>
 
-
       {toast && (
-        <div className="mb-3 rounded-lg bg-primary/10 border border-primary/20 px-3 py-2 text-sm text-primary animate-in fade-in slide-in-from-top-2">
+        <div className="mb-2 rounded-lg bg-primary/10 border border-primary/20 px-2.5 py-1.5 text-xs text-primary animate-in fade-in slide-in-from-top-2">
           {toast}
         </div>
       )}
 
       {showConfirmation ? (
-        <div className="flex flex-col items-center gap-3 py-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20">
-            <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+        <div className="flex flex-col items-center gap-2 py-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20">
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
           </div>
-          <div className="text-center">
-            <p className="font-medium text-foreground">Signal sent!</p>
-            <p className="text-sm text-muted-foreground">Your teacher has been notified</p>
-          </div>
-        </div>
-      ) : error ? (
-        <div className="flex flex-col items-center gap-3 py-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/20">
-            <AlertCircle className="h-7 w-7 text-destructive" />
-          </div>
-          <div className="text-center">
-            <p className="font-medium text-foreground">Couldn't send</p>
-            <p className="text-sm text-muted-foreground">{error}</p>
-          </div>
+          <p className="text-sm font-medium text-foreground">Signal sent!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5">
           {signals.map((signal) => {
             const Icon = signal.icon
             return (
               <button
                 key={signal.type}
                 onClick={() => handleSignal(signal.type)}
-
                 disabled={sending}
                 className={cn(
-                  "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all active:scale-95 disabled:opacity-60",
+                  "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all active:scale-95 disabled:opacity-60",
                   signal.color
-
                 )}
               >
-                <Icon className="h-6 w-6" />
+                <Icon className="h-5 w-5" />
                 <span className="text-xs font-medium text-center leading-tight">
                   {signal.label}
                 </span>
