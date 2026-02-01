@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useContextListener } from '../hooks/useContextListener';
 import { useUser } from '../context/UserContext';
 import { getContextClues as fetchContextClues } from '../services/api';
+import { FaceEmotionCheck } from '../components/FaceEmotionCheck';
 
 interface ContextClue {
   _id: string;
@@ -742,6 +743,9 @@ export default function ContextClues() {
               </div>
             </motion.div>
           )}
+
+          {/* Visual Analysis — Face emotion check (opt-in, no storage of face/photo) */}
+          <FaceEmotionCheck />
         </motion.div>
       )}
     </div>

@@ -6,11 +6,10 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
-// Load environment variables from backend directory
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-console.log('🔑 ELEVENLABS_API_KEY loaded:', process.env.ELEVENLABS_API_KEY ? 'Yes (starts with ' + process.env.ELEVENLABS_API_KEY.substring(0, 4) + ')' : 'No');
-console.log('📂 Loading .env from:', path.resolve(__dirname, '../.env'));
+// Load environment variables: try backend/.env first, then repo root .env
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Import routes
 import analyzeRoutes from './routes/analyze';
