@@ -9,7 +9,24 @@ const router = Router();
  */
 router.get('/:userId', async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    const userId = req.params.userId as string;
+
+    // Check if userId is a valid MongoDB ObjectId format (24-char hex)
+    const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(userId);
+
+    if (!isValidObjectId) {
+      // Return default profile for demo/guest mode (non-ObjectId userIds like "demo-user")
+      res.json({
+        _id: userId,
+        displayName: 'Friend',
+        ageRange: '13-15',
+        readingLevelGrade: 7,
+        sensitivity: 'med',
+        focusMoments: 0,
+        journalPrompts: [],
+      });
+      return;
+    }
 
     let user = await User.findById(userId);
 

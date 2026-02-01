@@ -1,3 +1,28 @@
+<<<<<<< HEAD
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+=======
 # Dependencies
 node_modules/
 .pnp
@@ -25,10 +50,22 @@ build/
 # Logs
 logs/
 *.log
+>>>>>>> 458bc65017097f9081c4859b9dfa5b4819e559dc
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+<<<<<<< HEAD
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+=======
 # Testing
 coverage/
 .nyc_output/
@@ -36,9 +73,16 @@ coverage/
 # Uploads (temp files)
 backend/uploads/
 
+# Generated audio files (keep directory structure with .gitkeep)
+backend/audio/*.mp3
+backend/audio/*.wav
+backend/audio/*.ogg
+!backend/audio/.gitkeep
+
 # OS
 Thumbs.db
 
 # Misc
 *.pem
 .cache/
+>>>>>>> 458bc65017097f9081c4859b9dfa5b4819e559dc

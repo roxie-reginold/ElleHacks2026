@@ -7,10 +7,11 @@ const router = Router();
 /**
  * POST /api/recap
  * Generate a recap from transcript at specified reading level
+ * Body: { userId, sessionId, transcript, readingLevelGrade, generateAudio? }
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { userId, sessionId, transcript, readingLevelGrade = 7 } = req.body;
+    const { userId, sessionId, transcript, readingLevelGrade = 7, generateAudio = false } = req.body;
 
     if (!userId || !transcript) {
       res.status(400).json({ error: 'userId and transcript are required' });
@@ -20,8 +21,8 @@ router.post('/', async (req: Request, res: Response) => {
     // Validate reading level
     const level = Math.min(10, Math.max(6, parseInt(readingLevelGrade)));
 
-    // Generate recap
-    const result = await generateRecap(transcript, level);
+    // Generate recap (with optional audio via ElevenLabs)
+    const result = await generateRecap(transcript, level, generateAudio);
 
     // Save to database if MongoDB is connected
     try {

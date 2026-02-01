@@ -11,10 +11,10 @@ export interface IContextClue extends Document {
 
 const ContextClueSchema = new Schema<IContextClue>(
   {
-    phrase: { type: String, required: true, unique: true, index: true },
+    phrase: { type: String, required: true, unique: true },  // unique already creates index
     meaning: { type: String, required: true },
     examples: { type: [String], default: [] },
-    category: { type: String },
+    category: { type: String, index: true },  // Index category for filtering
   },
   {
     timestamps: true,

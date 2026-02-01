@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { cn } from "@/lib/utils"
+
 import { CheckCircle2, HelpCircle, Turtle, AlertCircle } from "lucide-react"
 import { useUser } from "@/context/UserContext"
 import { useClassSession } from "@/context/ClassSessionContext"
@@ -13,6 +14,7 @@ const signals: {
   label: string
   color: string
 }[] = [
+
   {
     type: "help",
     icon: AlertCircle,
@@ -32,6 +34,7 @@ const signals: {
     color: "bg-primary/10 text-primary hover:bg-primary/20 border-primary/20",
   },
 ]
+
 
 export function TeacherSignal() {
   const { user } = useUser()
@@ -77,6 +80,7 @@ export function TeacherSignal() {
     [user?._id, classSessionId, courseId, sending, showToast]
   )
 
+
   return (
     <div className="rounded-2xl border border-border bg-card p-5 h-full">
       <div className="mb-4">
@@ -85,6 +89,7 @@ export function TeacherSignal() {
           Tap once — your teacher will see it. Private.
         </p>
       </div>
+
 
       {toast && (
         <div className="mb-3 rounded-lg bg-primary/10 border border-primary/20 px-3 py-2 text-sm text-primary animate-in fade-in slide-in-from-top-2">
@@ -102,6 +107,16 @@ export function TeacherSignal() {
             <p className="text-sm text-muted-foreground">Your teacher has been notified</p>
           </div>
         </div>
+      ) : error ? (
+        <div className="flex flex-col items-center gap-3 py-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/20">
+            <AlertCircle className="h-7 w-7 text-destructive" />
+          </div>
+          <div className="text-center">
+            <p className="font-medium text-foreground">Couldn't send</p>
+            <p className="text-sm text-muted-foreground">{error}</p>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {signals.map((signal) => {
@@ -110,10 +125,12 @@ export function TeacherSignal() {
               <button
                 key={signal.type}
                 onClick={() => handleSignal(signal.type)}
+
                 disabled={sending}
                 className={cn(
                   "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all active:scale-95 disabled:opacity-60",
                   signal.color
+
                 )}
               >
                 <Icon className="h-6 w-6" />

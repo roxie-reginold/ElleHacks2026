@@ -1,11 +1,27 @@
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 
-// Initialize OpenAI client (will be null if no API key)
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+// Initialize ElevenLabs client for Scribe v2 transcription
+const elevenlabs = process.env.ELEVENLABS_API_KEY
+  ? new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY })
   : null;
+
+// Initialize OpenRouter client (OpenAI-compatible) for Gemini
+const openrouter = process.env.OPENROUTER_API_KEY
+  ? new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      defaultHeaders: {
+        'HTTP-Referer': 'https://whisper-lite.app',
+        'X-Title': 'Whisper Lite',
+      },
+    })
+  : null;
+
+// OpenRouter model for Gemini
+const GEMINI_MODEL = 'google/gemini-2.5-flash';
 
 export interface DetectionEvent {
   t: number;
@@ -37,38 +53,43 @@ const CALMING_PROMPTS = [
 ];
 
 /**
- * Transcribe audio using OpenAI Whisper API
+ * Transcribe audio using ElevenLabs Scribe v2 API
+ * Ref: https://elevenlabs.io/docs/overview/capabilities/speech-to-text
  */
 export async function transcribeAudio(audioPath: string): Promise<string> {
-  if (!openai) {
-    console.log('No OpenAI API key, using mock transcription');
-    return getMockTranscript();
+  if (!elevenlabs) {
+    console.error('No ElevenLabs API key configured - transcription unavailable');
+    throw new Error('ElevenLabs API key not configured. Please set ELEVENLABS_API_KEY environment variable.');
   }
 
   try {
-    const audioFile = fs.createReadStream(audioPath);
-    const response = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      language: 'en',
+    // Call ElevenLabs Scribe v2 for transcription
+    const transcription = await elevenlabs.speechToText.convert({
+      file: fs.createReadStream(audioPath),
+      modelId: 'scribe_v2',
+      languageCode: 'en',
+      tagAudioEvents: true,
     });
-    return response.text;
-  } catch (error) {
-    console.error('Transcription error:', error);
-    return getMockTranscript();
+
+    const result = transcription as any;
+    console.log('ElevenLabs Scribe v2 transcription completed');
+    return result.text || '';
+  } catch (error: any) {
+    console.error('ElevenLabs transcription error:', error);
+    throw new Error(`Transcription failed: ${error.message || 'Unknown error'}`);
   }
 }
 
 /**
- * Analyze transcript for stress indicators using GPT-4
+ * Analyze transcript for stress indicators using Gemini via OpenRouter
  */
 export async function analyzeTranscript(
   transcript: string,
   sensitivity: 'low' | 'med' | 'high' = 'med'
 ): Promise<AnalysisResult> {
-  if (!openai) {
-    console.log('No OpenAI API key, using mock analysis');
-    return getMockAnalysis(transcript);
+  if (!openrouter) {
+    console.error('No OpenRouter API key configured - analysis unavailable');
+    throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY environment variable.');
   }
 
   const sensitivityThresholds = {
@@ -77,13 +98,7 @@ export async function analyzeTranscript(
     high: 'Flag subtle emotional cues and potential stressors',
   };
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an empathetic AI assistant helping neurodivergent students understand classroom audio. 
+  const systemPrompt = `You are an empathetic AI assistant helping neurodivergent students understand classroom audio. 
 Your task is to analyze the transcript and identify potential emotional stressors.
 
 Sensitivity level: ${sensitivityThresholds[sensitivity]}
@@ -95,41 +110,44 @@ Analyze for:
 4. Sarcasm or harsh tones
 5. Emotionally loaded phrases
 
-Respond in JSON format:
-{
-  "overallState": "calm" | "stressor_detected",
-  "events": [
-    {
-      "type": "fast_speech" | "laughter_spike" | "harsh_tone" | "sarcasm_likely" | "crowd_noise" | "urgent_tone" | "frustrated_tone",
-      "confidence": 0.0-1.0,
-      "note": "brief, supportive explanation in plain language"
-    }
-  ],
-  "toneSummary": "brief description of overall tone"
-}
-
 IMPORTANT: 
 - Never use alarming language
 - Frame everything supportively
 - If nothing concerning, return overallState: "calm" with empty events array
-- Notes should be reassuring, e.g., "The teacher sounds busy, not mad at you"`,
-        },
-        {
-          role: 'user',
-          content: `Analyze this classroom audio transcript:\n\n"${transcript}"`,
-        },
+- Notes should be reassuring, e.g., "The teacher sounds busy, not mad at you"
+
+Return JSON with:
+- overallState: "calm" | "stressor_detected" | "unknown"
+- events: array of { type, confidence, note }`;
+
+  try {
+    const response = await openrouter.chat.completions.create({
+      model: GEMINI_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Analyze this classroom audio transcript:\n\n"${transcript}"` },
       ],
-      response_format: { type: 'json_object' },
       temperature: 0.3,
+      response_format: { type: 'json_object' },
     });
 
-    const content = response.choices[0].message.content;
-    if (!content) {
-      return getMockAnalysis(transcript);
+    const responseText = response.choices[0]?.message?.content || '{}';
+    
+    // Parse JSON response, handling potential markdown code blocks
+    let analysis: any;
+    try {
+      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) ||
+                       responseText.match(/```\s*([\s\S]*?)\s*```/);
+      const jsonStr = jsonMatch ? jsonMatch[1] : responseText;
+      analysis = JSON.parse(jsonStr.trim());
+    } catch (parseError) {
+      console.warn('Failed to parse Gemini JSON response, using default calm state');
+      analysis = { overallState: 'calm', events: [] };
     }
 
-    const analysis = JSON.parse(content);
     const hasStressors = analysis.events && analysis.events.length > 0;
+    
+    console.log(`Gemini analysis completed via OpenRouter: ${hasStressors ? 'stressor detected' : 'calm'}`);
     
     return {
       detections: {
@@ -137,8 +155,8 @@ IMPORTANT:
         events: (analysis.events || []).map((e: any, i: number) => ({
           t: i,
           type: e.type,
-          confidence: e.confidence,
-          note: e.note,
+          confidence: e.confidence || 0.5,
+          note: e.note || 'Analysis detected this pattern.',
         })),
       },
       suggestedPrompt: hasStressors 
@@ -147,9 +165,9 @@ IMPORTANT:
       uiState: hasStressors ? 'amber' : 'green',
       transcript,
     };
-  } catch (error) {
-    console.error('Analysis error:', error);
-    return getMockAnalysis(transcript);
+  } catch (error: any) {
+    console.error('Gemini analysis error:', error);
+    throw new Error(`Analysis failed: ${error.message || 'Unknown error'}`);
   }
 }
 
@@ -161,61 +179,11 @@ export async function analyzeAudio(
   sensitivity: 'low' | 'med' | 'high' = 'med',
   providedTranscript?: string
 ): Promise<AnalysisResult> {
-  // Use provided transcript or transcribe audio
+  // Use provided transcript or transcribe audio via ElevenLabs Scribe v2
   const transcript = providedTranscript || await transcribeAudio(audioPath);
   
-  // Analyze the transcript
+  // Analyze the transcript via Gemini
   return analyzeTranscript(transcript, sensitivity);
-}
-
-// Mock functions for demo/offline mode
-function getMockTranscript(): string {
-  const mockTranscripts = [
-    "Alright everyone, let's settle down. Today we're going to learn about photosynthesis. Plants are amazing - they can make their own food from sunlight!",
-    "Can everyone please pay attention? This is important. The test is next week and I need you all to focus. Let's go through this one more time.",
-    "Great job on the assignment, class! I'm really proud of how hard everyone worked. Now let's move on to the next chapter.",
-    "Okay okay, quiet down everyone! I know you're excited but we need to get through this material. Stop talking and listen please!",
-  ];
-  return mockTranscripts[Math.floor(Math.random() * mockTranscripts.length)];
-}
-
-function getMockAnalysis(transcript: string): AnalysisResult {
-  // Simple heuristic-based mock analysis
-  const lowerTranscript = transcript.toLowerCase();
-  const events: DetectionEvent[] = [];
-  
-  // Check for urgent/frustrated indicators
-  if (lowerTranscript.includes('quiet down') || lowerTranscript.includes('pay attention') || lowerTranscript.includes('stop talking')) {
-    events.push({
-      t: 0,
-      type: 'urgent_tone',
-      confidence: 0.7,
-      note: "The teacher is asking for attention. This is normal - it's not about you specifically.",
-    });
-  }
-  
-  if (lowerTranscript.includes('!') && (lowerTranscript.includes('please') || lowerTranscript.includes('now'))) {
-    events.push({
-      t: 1,
-      type: 'frustrated_tone',
-      confidence: 0.5,
-      note: "The teacher sounds a bit stressed. Remember, teachers have busy days too.",
-    });
-  }
-
-  const hasStressors = events.length > 0;
-  
-  return {
-    detections: {
-      overallState: hasStressors ? 'stressor_detected' : 'calm',
-      events,
-    },
-    suggestedPrompt: hasStressors 
-      ? CALMING_PROMPTS[Math.floor(Math.random() * CALMING_PROMPTS.length)]
-      : '',
-    uiState: hasStressors ? 'amber' : 'green',
-    transcript,
-  };
 }
 
 export default {
