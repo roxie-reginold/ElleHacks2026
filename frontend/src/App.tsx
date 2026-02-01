@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Navigation } from "@/components/ui/Navigation"
 import { useUser } from "@/context/UserContext"
@@ -11,19 +11,11 @@ import { FaceEmotionCheck } from "@/components/FaceEmotionCheck"
 import { TeacherSignal } from "@/components/TeacherSignal"
 import { CourageClips, type CourageClip } from "@/components/CourageClips"
 import { WeeklyDashboard } from "@/components/WeeklyDashboard"
-import { ContextClueOverlay } from "@/components/ContextClueOverlay"
 import { useContextListener } from "@/hooks/useContextListener"
-import { Wind, Sparkles, Heart, MessageCircle, X, Smile, Volume2, Users, AlertTriangle } from "lucide-react"
+import { Wind, Sparkles, Heart, MessageCircle, X, Volume2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { incrementFocusMoments } from "@/services/api"
 import type { ContextLabel } from "@/types/breathing"
-
-interface ContextClue {
-  id: string
-  message: string
-  type: "joke" | "sarcasm" | "tone" | "info"
-  suggestion?: string
-}
 
 const sampleWeeklyStats = {
   moodData: [
@@ -42,45 +34,12 @@ const sampleWeeklyStats = {
   insight: "You're calmer on Tuesdays. Group work days seem to go better when you use your breathing exercises first.",
 }
 
-const typeConfig = {
-  joke: {
-    icon: Smile,
-    label: "Joke detected",
-    bgClass: "bg-emerald-500/10",
-    borderClass: "border-emerald-500/30",
-    textClass: "text-emerald-400"
-  },
-  sarcasm: {
-    icon: MessageCircle,
-    label: "Sarcasm noted",
-    bgClass: "bg-emerald-500/10",
-    borderClass: "border-emerald-500/30",
-    textClass: "text-emerald-400"
-  },
-  tone: {
-    icon: Volume2,
-    label: "Tone shift",
-    bgClass: "bg-emerald-500/10",
-    borderClass: "border-emerald-500/30",
-    textClass: "text-emerald-400"
-  },
-  info: {
-    icon: Users,
-    label: "Social cue",
-    bgClass: "bg-emerald-500/10",
-    borderClass: "border-emerald-500/30",
-    textClass: "text-emerald-400"
-  },
-}
-
 export default function App() {
   const { user, updatePreferences } = useUser()
   const navigate = useNavigate()
   const userId = user?._id || 'demo-user'
 
   const [activeTab, setActiveTab] = useState("home")
-  const [contextClues, setContextClues] = useState<ContextClue[]>([])
-  const [currentClue, setCurrentClue] = useState<ContextClue | null>(null)
   const [showBreathing, setShowBreathing] = useState(false)
   const [todaysMood, setTodaysMood] = useState<Mood | null>(null)
   const [isListening, setIsListening] = useState(false)
@@ -109,23 +68,6 @@ export default function App() {
   useEffect(() => {
     setIsListening(isStreaming)
   }, [isStreaming])
-
-  // When backend sends a context update (Gemini), add it as a clue and show overlay (once per update)
-  const lastContextTimestampRef = useRef<number | null>(null)
-  useEffect(() => {
-    if (!currentContext || !isStreaming) return
-    const hasContent = currentContext.summary || currentContext.tone || currentContext.assessment
-    if (!hasContent) return
-    if (lastContextTimestampRef.current === currentContext.timestamp) return
-    lastContextTimestampRef.current = currentContext.timestamp
-    const clue: ContextClue = {
-      id: `ctx-${currentContext.timestamp}-${Date.now()}`,
-      message: currentContext.summary || (currentContext.tone ? `Tone: ${currentContext.tone}` : currentContext.assessment),
-      type: 'info',
-    }
-    setContextClues(prev => [clue, ...prev].slice(0, 10))
-    setCurrentClue(clue)
-  }, [currentContext, isStreaming])
 
   const handleStartListening = async () => {
     connect()
@@ -182,14 +124,6 @@ export default function App() {
     setCourageClips(clips)
   }, [])
 
-  const removeClue = (id: string) => {
-    setContextClues(prev => prev.filter(c => c.id !== id))
-  }
-
-  const dismissOverlayClue = useCallback(() => {
-    setCurrentClue(null)
-  }, [])
-
   const isContextFlowActive = breathingContextFlow !== null
 
   return (
@@ -217,8 +151,6 @@ export default function App() {
           onComplete={handleBreathingContextComplete}
         />
       )}
-
-      <ContextClueOverlay clue={currentClue} onDismiss={dismissOverlayClue} />
 
       {!isContextFlowActive && (
         <>
@@ -384,7 +316,7 @@ export default function App() {
                   </div>
                 )}
 
-                {!isListening && contextClues.length === 0 && (
+                {!isListening && (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
                       <Volume2 className="h-6 w-6 text-muted-foreground/50" />
@@ -393,7 +325,7 @@ export default function App() {
                       Tap &quot;Start Listening&quot; to detect social cues
                     </p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
-                      Context clues will appear here
+                      Tone &amp; social cue (Gemini) will appear here when listening
                     </p>
                   </div>
                 )}
@@ -446,7 +378,7 @@ export default function App() {
                   </div>
                 )}
 
-                {isListening && !liveTranscript && contextClues.length === 0 && (
+                {isListening && !liveTranscript && !currentContext?.summary && (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center mb-3">
                       <Volume2 className="h-6 w-6 text-primary animate-pulse" />
@@ -459,52 +391,6 @@ export default function App() {
                     </p>
                   </div>
                 )}
-
-                <div className="space-y-3">
-                  {contextClues.map((clue, index) => {
-                    const config = typeConfig[clue.type]
-                    const Icon = config.icon
-                    return (
-                      <div
-                        key={clue.id}
-                        className={cn(
-                          "rounded-xl border p-4 transition-all animate-in fade-in slide-in-from-top-2",
-                          config.bgClass,
-                          config.borderClass
-                        )}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={cn(
-                            "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
-                            "bg-emerald-500/20"
-                          )}>
-                            <Icon className={cn("h-4 w-4", config.textClass)} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={cn("text-xs font-medium mb-1", config.textClass)}>
-                              {config.label}
-                            </p>
-                            <p className="text-sm text-foreground leading-snug">
-                              {clue.message}
-                            </p>
-                            {clue.suggestion && (
-                              <p className="text-xs text-emerald-600/70 mt-2 italic">
-                                Try: {clue.suggestion}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => removeClue(clue.id)}
-                            className="text-emerald-500/40 hover:text-emerald-500 shrink-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
             </div>
           </div>
