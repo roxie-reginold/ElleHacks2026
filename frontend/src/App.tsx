@@ -3,9 +3,11 @@
 import { useState, useCallback } from "react"
 import { Navigation } from "@/components/ui/Navigation"
 import { BreathingExercise } from "@/components/BreathingExercise"
+import { BreathingContextPrompt } from "@/components/BreathingContextPrompt"
 import { AudioAnalyzer } from "@/components/AudioAnalyzer"
 import { MoodTracker, type Mood } from "@/components/MoodTracker"
 import { FaceEmotionCheck } from "@/components/FaceEmotionCheck"
+import type { ContextLabel } from "@/types/breathing"
 import { TeacherSignal } from "@/components/TeacherSignal"
 import { CourageClips, type CourageClip } from "@/components/CourageClips"
 import { WeeklyDashboard } from "@/components/WeeklyDashboard"
@@ -78,6 +80,10 @@ export default function App() {
   const [contextClues, setContextClues] = useState<ContextClue[]>([])
   const [currentClue, setCurrentClue] = useState<ContextClue | null>(null)
   const [showBreathing, setShowBreathing] = useState(false)
+  /** When set, the context-aware breathing flow is active (full-page). Prompt → exercise → dashboard. */
+  const [breathingContextFlow, setBreathingContextFlow] = useState<ContextLabel | null>(null)
+  /** When true, we're in the exercise phase of the context flow (after "Start breathing"). */
+  const [breathingContextExercise, setBreathingContextExercise] = useState(false)
   const [todaysMood, setTodaysMood] = useState<Mood | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [stressAlert, setStressAlert] = useState(false)
@@ -105,20 +111,47 @@ export default function App() {
     setStressAlert(true)
   }, [])
 
-  const handleBreathingComplete = useCallback(async (_feeling: "calm" | "stressed") => {
+  const handleBreathingComplete = useCallback(async (feeling?: "calm" | "stressed") => {
     setShowBreathing(false)
     setStressAlert(false)
-    
-    // Increment focus moments when completing breathing exercise
-    try {
-      await incrementFocusMoments(userId)
-    } catch (error) {
-      console.error("Failed to increment focus moments:", error)
+    if (feeling !== undefined) {
+      try {
+        await incrementFocusMoments(userId)
+      } catch (error) {
+        console.error("Failed to increment focus moments:", error)
+      }
     }
   }, [userId])
 
   const handleMoodSelect = useCallback((mood: Mood) => {
     setTodaysMood(mood)
+    if (mood === "tough" || mood === "hard") {
+      setBreathingContextFlow(mood)
+      setBreathingContextExercise(false)
+    }
+  }, [])
+
+  const handleBreathingContextStart = useCallback(() => {
+    setBreathingContextExercise(true)
+  }, [])
+
+  const handleBreathingContextMaybeLater = useCallback(() => {
+    setBreathingContextFlow(null)
+    setBreathingContextExercise(false)
+    setActiveTab("home")
+  }, [])
+
+  const handleBreathingContextComplete = useCallback(() => {
+    setBreathingContextFlow(null)
+    setBreathingContextExercise(false)
+    setActiveTab("home")
+  }, [])
+
+  const handleEmotionChange = useCallback((emotion: "sad" | "happy" | "confused") => {
+    if (emotion === "sad" || emotion === "confused") {
+      setBreathingContextFlow(emotion)
+      setBreathingContextExercise(false)
+    }
   }, [])
 
   const handleTeacherSignal = useCallback((_type: "question" | "slow" | "help") => {
@@ -145,16 +178,39 @@ export default function App() {
     setCurrentClue(null)
   }, [])
 
+  const isContextFlowActive = breathingContextFlow !== null
+
   return (
     <div className="min-h-screen bg-background lg:pl-20">
+      {/* Manual Breathe button: overlay BreathingExercise (default mode) */}
       <BreathingExercise
         isOpen={showBreathing}
         onClose={() => setShowBreathing(false)}
         onComplete={handleBreathingComplete}
       />
 
+      {/* Full-page context-aware flow: no header/nav until complete or "Maybe later" */}
+      {isContextFlowActive && !breathingContextExercise && (
+        <BreathingContextPrompt
+          context={breathingContextFlow}
+          onStart={handleBreathingContextStart}
+          onMaybeLater={handleBreathingContextMaybeLater}
+        />
+      )}
+      {isContextFlowActive && breathingContextExercise && (
+        <BreathingExercise
+          isOpen
+          mode="contextual"
+          startImmediately
+          onClose={handleBreathingContextMaybeLater}
+          onComplete={handleBreathingContextComplete}
+        />
+      )}
+
       <ContextClueOverlay clue={currentClue} onDismiss={dismissOverlayClue} />
 
+      {!isContextFlowActive && (
+        <>
       <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 lg:px-8 py-3">
           <div className="flex items-center gap-2.5 lg:hidden">
@@ -210,7 +266,7 @@ export default function App() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Use your camera to see how you might be feeling. Stays on this device — nothing is saved or sent.
                 </p>
-                <FaceEmotionCheck className="mt-0" />
+                <FaceEmotionCheck className="mt-0" onEmotionChange={handleEmotionChange} />
               </div>
 
               <TeacherSignal 
@@ -415,6 +471,8 @@ export default function App() {
       </main>
 
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+        </>
+      )}
     </div>
   )
 }

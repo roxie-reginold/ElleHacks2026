@@ -57,8 +57,19 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
   const rafRef = useRef<number>(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const faceApiRef = useRef<typeof import('face-api.js') | null>(null);
+  const onEmotionChangeRef = useRef(onEmotionChange);
+  const breathingTriggeredForRef = useRef<DisplayEmotion | null>(null);
+  const breathingDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  onEmotionChangeRef.current = onEmotionChange;
+
+  const PAUSE_BEFORE_BREATHING_MS = 2500; // Show emotion first, then trigger breathing
 
   const stopCamera = useCallback(() => {
+    if (breathingDelayTimeoutRef.current) {
+      clearTimeout(breathingDelayTimeoutRef.current);
+      breathingDelayTimeoutRef.current = null;
+    }
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -73,6 +84,7 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
     }
     setEmotion(null);
     setNoFace(false);
+    breathingTriggeredForRef.current = null;
   }, []);
 
   const close = useCallback(() => {
@@ -169,13 +181,36 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
         if (!result) {
           setNoFace(true);
           setEmotion(null);
+          if (breathingDelayTimeoutRef.current) {
+            clearTimeout(breathingDelayTimeoutRef.current);
+            breathingDelayTimeoutRef.current = null;
+          }
           return;
         }
         setNoFace(false);
         const scores: ExpressionScores = { ...result.expressions };
         const { label, confidence } = mapExpressionsToDisplay(scores);
         setEmotion({ label, confidence });
-        onEmotionChange?.(label);
+
+        // Pause to let the user see their emotion, then trigger breathing (once per bout)
+        const triggerLabel = label === 'sad' || label === 'confused' ? label : null;
+        if (triggerLabel) {
+          if (breathingTriggeredForRef.current === triggerLabel) {
+            // Already triggered for this bout — do nothing
+          } else if (breathingDelayTimeoutRef.current === null) {
+            breathingDelayTimeoutRef.current = setTimeout(() => {
+              breathingDelayTimeoutRef.current = null;
+              breathingTriggeredForRef.current = triggerLabel;
+              onEmotionChangeRef.current?.(triggerLabel);
+            }, PAUSE_BEFORE_BREATHING_MS);
+          }
+        } else {
+          if (breathingDelayTimeoutRef.current) {
+            clearTimeout(breathingDelayTimeoutRef.current);
+            breathingDelayTimeoutRef.current = null;
+          }
+          breathingTriggeredForRef.current = null;
+        }
       } catch {
         setNoFace(true);
         setEmotion(null);
@@ -186,6 +221,10 @@ export function FaceEmotionCheck({ onClose, onEmotionChange, className }: FaceEm
     runInference();
 
     return () => {
+      if (breathingDelayTimeoutRef.current) {
+        clearTimeout(breathingDelayTimeoutRef.current);
+        breathingDelayTimeoutRef.current = null;
+      }
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
