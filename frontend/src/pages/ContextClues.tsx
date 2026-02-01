@@ -190,8 +190,8 @@ export default function ContextClues() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as 'library' | 'listen')}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all min-h-[44px] ${activeTab === tab.id
-                ? 'bg-[var(--color-calm-600)] text-white'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              ? 'bg-[var(--color-calm-600)] text-white'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
           >
             <span>{tab.icon}</span>
@@ -262,8 +262,8 @@ export default function ContextClues() {
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors min-h-[44px] ${selectedCategory === cat.id
-                    ? 'bg-[var(--color-calm-600)] text-white'
-                    : 'bg-[var(--bg-card)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]'
+                  ? 'bg-[var(--color-calm-600)] text-white'
+                  : 'bg-[var(--bg-card)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]'
                   }`}
               >
                 {cat.label}
@@ -406,8 +406,8 @@ export default function ContextClues() {
               <button
                 onClick={() => setMode('streaming')}
                 className={`px-2 py-1 rounded ${mode === 'streaming'
-                    ? 'bg-[var(--color-calm-600)] text-white'
-                    : 'bg-[var(--bg-card)] text-[var(--text-muted)]'
+                  ? 'bg-[var(--color-calm-600)] text-white'
+                  : 'bg-[var(--bg-card)] text-[var(--text-muted)]'
                   }`}
               >
                 Instant
@@ -415,8 +415,8 @@ export default function ContextClues() {
               <button
                 onClick={() => setMode('chunked')}
                 className={`px-2 py-1 rounded ${mode === 'chunked'
-                    ? 'bg-[var(--color-calm-600)] text-white'
-                    : 'bg-[var(--bg-card)] text-[var(--text-muted)]'
+                  ? 'bg-[var(--color-calm-600)] text-white'
+                  : 'bg-[var(--bg-card)] text-[var(--text-muted)]'
                   }`}
               >
                 Detailed
@@ -429,8 +429,8 @@ export default function ContextClues() {
             onClick={handleToggleListening}
             whileTap={{ scale: 0.95 }}
             className={`relative mx-auto w-32 h-32 rounded-full flex items-center justify-center transition-all ${isListening
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-[var(--color-calm-600)] hover:bg-[var(--color-calm-700)]'
+              ? 'bg-red-500 hover:bg-red-600'
+              : 'bg-[var(--color-calm-600)] hover:bg-[var(--color-calm-700)]'
               }`}
           >
             {/* Audio level indicator ring */}
@@ -492,6 +492,70 @@ export default function ContextClues() {
                 {liveTranscript}
                 <span className="animate-pulse">|</span>
               </p>
+            </motion.div>
+          )}
+
+          {/* Social Context Analysis Panel - Gemini Analysis */}
+          {currentContext && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-4 bg-gradient-to-br from-[var(--color-calm-500)]/5 to-[var(--color-calm-600)]/5 rounded-xl border border-[var(--color-calm-500)]/20"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 bg-[var(--color-calm-600)] rounded-full" />
+                <span className="text-xs text-[var(--text-muted)] uppercase tracking-wide">
+                  Social Context Analysis
+                </span>
+                <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+                  {Math.round(currentContext.confidence * 100)}% confident
+                </span>
+              </div>
+
+              {/* Assessment */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">{getAssessmentEmoji(currentContext.assessment)}</span>
+                <span className={`font-medium capitalize text-sm ${getAssessmentColor(currentContext.assessment)}`}>
+                  {currentContext.assessment} Environment
+                </span>
+              </div>
+
+              {/* Summary */}
+              <p className="text-[var(--text-primary)] text-sm mb-3 leading-relaxed">
+                {currentContext.summary}
+              </p>
+
+              {/* Triggers */}
+              {currentContext.triggers && currentContext.triggers.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-[var(--text-muted)] mb-1">Detected Triggers:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {currentContext.triggers.map((trigger, i) => (
+                      <span
+                        key={i}
+                        className="px-2 py-1 bg-orange-500/10 text-orange-600 rounded-full text-xs"
+                      >
+                        {trigger}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {currentContext.recommendations && currentContext.recommendations.length > 0 && (
+                <div className="pt-2 border-t border-[var(--bg-secondary)]">
+                  <p className="text-xs text-[var(--text-muted)] mb-1">💡 Suggestions:</p>
+                  <ul className="space-y-1">
+                    {currentContext.recommendations.map((rec, i) => (
+                      <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1">
+                        <span className="text-[var(--color-calm-500)] text-[10px]">•</span>
+                        {rec}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </motion.div>
           )}
 

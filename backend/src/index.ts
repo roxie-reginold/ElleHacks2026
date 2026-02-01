@@ -29,11 +29,12 @@ import { processContextAudio } from './services/elevenLabsAudioService';
 import { analyzeSocialContext, getQuickEventInterpretation } from './services/geminiSocialService';
 import { generateCalmingPrompt } from './services/elevenLabsService';
 import { ElevenLabsRealtimeClient, createRealtimeClient } from './services/elevenLabsRealtimeService';
+import { GeminiLiveClient, createGeminiLiveClient } from './services/geminiLiveService';
 import ContextEvent from './models/ContextEvent';
 import { seedContextClues } from './models/ContextClue';
 
-// Store active realtime clients per socket
-const realtimeClients = new Map<string, ElevenLabsRealtimeClient>();
+// Store active realtime clients per socket (supporting both ElevenLabs and Gemini)
+const realtimeClients = new Map<string, ElevenLabsRealtimeClient | GeminiLiveClient>();
 
 // Gemini analysis interval (batched every 5 seconds)
 const GEMINI_ANALYSIS_INTERVAL = 5000;
@@ -86,7 +87,7 @@ io.on('connection', (socket) => {
 
   let currentSessionId: string | null = null;
   let userId: string = 'demo-user';
-  let realtimeClient: ElevenLabsRealtimeClient | null = null;
+  let realtimeClient: ElevenLabsRealtimeClient | GeminiLiveClient | null = null;
   let geminiAnalysisTimer: NodeJS.Timeout | null = null;
   let accumulatedEvents: string[] = [];
   let lastAnalysisTime = 0;
@@ -206,15 +207,15 @@ io.on('connection', (socket) => {
         return;
       }
       await realtimeClient.connect();
-      realtimeClient.clearAccumulated();
+      (realtimeClient as ElevenLabsRealtimeClient).clearAccumulated();
       accumulatedEvents = [];
 
       // Start periodic Gemini analysis (every 5 seconds)
       geminiAnalysisTimer = setInterval(async () => {
         if (!realtimeClient) return;
 
-        const transcript = realtimeClient.getAccumulatedTranscript();
-        const events = realtimeClient.getDetectedEvents();
+        const transcript = (realtimeClient as ElevenLabsRealtimeClient).getAccumulatedTranscript();
+        const events = (realtimeClient as ElevenLabsRealtimeClient).getDetectedEvents();
 
         // Only analyze if we have new data
         if (transcript.length === 0 && events.length === 0) return;
