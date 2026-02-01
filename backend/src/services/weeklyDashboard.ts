@@ -70,6 +70,56 @@ export function getTimeOfDay(timestamp: Date): 'morning' | 'afternoon' | 'evenin
   return 'evening';
 }
 
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/**
+ * Build mood-by-day for the week (Mon–Sun). Mood 1–5 from stress level 0–4 (5 - stress).
+ * No logs for a day => mood 3 (okay).
+ */
+function buildMoodDataByDay(
+  weekStart: Date,
+  emotionLogs: { timestamp: Date; stressLevel?: number }[]
+): { day: string; mood: number }[] {
+  return DAY_NAMES.map((day, i) => {
+    const dayStart = new Date(weekStart);
+    dayStart.setDate(weekStart.getDate() + i);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+    const logs = emotionLogs.filter(
+      (log) => log.timestamp >= dayStart && log.timestamp <= dayEnd
+    );
+    if (logs.length === 0) return { day, mood: 3 };
+    const avgStress =
+      logs.reduce((s, l) => s + (l.stressLevel ?? 2), 0) / logs.length;
+    const mood = Math.round(5 - Math.max(0, Math.min(4, avgStress)));
+    return { day, mood: Math.max(1, Math.min(5, mood)) };
+  });
+}
+
+/**
+ * Derive top mood label from emotion logs (most common stress level -> label).
+ */
+function getTopMoodFromLogs(
+  emotionLogs: { stressLevel?: number }[]
+): string {
+  if (emotionLogs.length === 0) return '—';
+  const levels = emotionLogs.map((l) => l.stressLevel ?? 2);
+  const counts: Record<number, number> = {};
+  levels.forEach((l) => {
+    counts[l] = (counts[l] || 0) + 1;
+  });
+  const most = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const stressToLabel: Record<number, string> = {
+    0: 'Great',
+    1: 'Good',
+    2: 'Okay',
+    3: 'Tough',
+    4: 'Hard',
+  };
+  return stressToLabel[Number(most[0])] ?? 'Okay';
+}
+
 /**
  * Aggregate all weekly data for a user
  */
@@ -283,7 +333,19 @@ export async function saveWeeklyInsight(
 export async function getWeeklyDashboard(userId: string, weekOffset: number = 0) {
   try {
     const aggregatedData = await aggregateWeeklyData(userId, weekOffset);
-    const { insights, suggestions } = await generateGeminiInsights(aggregatedData);
+    let insights: string[] = [];
+    let suggestions: string[] = [];
+    try {
+      const result = await generateGeminiInsights(aggregatedData);
+      insights = result.insights;
+      suggestions = result.suggestions;
+    } catch (insightError) {
+      console.warn('Weekly insights unavailable (OpenRouter or Gemini):', insightError);
+      if (aggregatedData.totalEmotionLogs > 0) {
+        insights = ["You're building a habit of checking in with yourself. Keep it up."];
+        suggestions = ["Try logging how you feel at different times to spot patterns."];
+      }
+    }
 
     // Try to save to database, but don't fail if it doesn't work
     let savedInsight = null;
@@ -294,6 +356,9 @@ export async function getWeeklyDashboard(userId: string, weekOffset: number = 0)
     }
 
     const { start, end } = getWeekBounds(weekOffset);
+
+    const moodDataByDay = buildMoodDataByDay(start, aggregatedData.emotionLogs);
+    const topMood = getTopMoodFromLogs(aggregatedData.emotionLogs);
 
     return {
       period: {
@@ -312,6 +377,8 @@ export async function getWeeklyDashboard(userId: string, weekOffset: number = 0)
         timeDistribution: aggregatedData.timeDistribution,
         contextPatterns: aggregatedData.contextDistribution,
       },
+      moodDataByDay,
+      topMood,
       insights,
       suggestions,
       recentEmotionLogs: aggregatedData.emotionLogs.slice(0, 7), // Last 7 for timeline

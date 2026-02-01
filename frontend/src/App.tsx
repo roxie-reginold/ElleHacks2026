@@ -12,7 +12,7 @@ import { useUser } from "@/context/UserContext"
 import { useContextListener } from "@/hooks/useContextListener"
 import { Wind, Sparkles, Heart, MessageCircle, X, Smile, Volume2, Users, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { incrementFocusMoments } from "@/services/api"
+import { incrementFocusMoments, getWeeklyDashboard, type WeeklyDashboardApiResponse } from "@/services/api"
 
 interface ContextClue {
   id: string
@@ -21,21 +21,21 @@ interface ContextClue {
   suggestion?: string
 }
 
-const sampleWeeklyStats = {
+const defaultWeeklyStats = {
   moodData: [
-    { day: "Mon", mood: 4 },
-    { day: "Tue", mood: 5 },
+    { day: "Mon", mood: 3 },
+    { day: "Tue", mood: 3 },
     { day: "Wed", mood: 3 },
-    { day: "Thu", mood: 4 },
-    { day: "Fri", mood: 4 },
-    { day: "Sat", mood: 5 },
-    { day: "Sun", mood: 4 },
+    { day: "Thu", mood: 3 },
+    { day: "Fri", mood: 3 },
+    { day: "Sat", mood: 3 },
+    { day: "Sun", mood: 3 },
   ],
-  breathingBreaks: 12,
-  winsLogged: 8,
-  signalsSent: 3,
-  topMood: "Good",
-  insight: "You're calmer on Tuesdays. Group work days seem to go better when you use your breathing exercises first.",
+  breathingBreaks: 0,
+  winsLogged: 0,
+  signalsSent: 0,
+  topMood: "—",
+  insight: "Log your mood and use the app this week to see insights here.",
 }
 
 const typeConfig = {
@@ -82,10 +82,11 @@ export default function App() {
   const [stressAlert, setStressAlert] = useState(false)
   const [courageClips, setCourageClips] = useState<CourageClip[]>([])
 
-  // Real-time ElevenLabs transcription
+  // Real-time ElevenLabs transcription + Gemini tone/social cue analysis
   const {
     isStreaming,
     liveTranscript,
+    currentContext,
     startListening: startRealListening,
     stopListening: stopRealListening,
     connect,
@@ -99,6 +100,17 @@ export default function App() {
   useEffect(() => {
     setIsListening(isStreaming)
   }, [isStreaming])
+
+  // Fetch real dashboard when Insights tab is shown
+  useEffect(() => {
+    if (activeTab !== "insights") return
+    setDashboardError(null)
+    setDashboardLoading(true)
+    getWeeklyDashboard(userId)
+      .then((data) => setDashboardData(data))
+      .catch((err) => setDashboardError(err instanceof Error ? err.message : "Failed to load dashboard"))
+      .finally(() => setDashboardLoading(false))
+  }, [activeTab, userId])
 
   const handleStartListening = async () => {
     connect()
@@ -349,6 +361,41 @@ export default function App() {
                   </div>
                 )}
 
+                {isListening && currentContext && (currentContext.summary || currentContext.tone || currentContext.assessment) && (
+                  <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="h-4 w-4 text-emerald-500" />
+                      <p className="text-xs font-medium text-emerald-600">Tone & social cue (Gemini)</p>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      {(currentContext.tone && currentContext.tone !== 'unknown') && (
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Tone:</span>{' '}
+                          <span className="font-medium capitalize">{currentContext.tone}</span>
+                        </p>
+                      )}
+                      <p className="text-muted-foreground">
+                        <span className="text-muted-foreground">Vibe:</span>{' '}
+                        <span className="capitalize">{currentContext.assessment}</span>
+                      </p>
+                      {currentContext.summary && (
+                        <p className="text-foreground leading-relaxed">{currentContext.summary}</p>
+                      )}
+                      {currentContext.triggers && currentContext.triggers.length > 0 && (
+                        <p className="text-foreground">
+                          <span className="text-muted-foreground">Noted:</span>{' '}
+                          {currentContext.triggers.join(', ')}
+                        </p>
+                      )}
+                      {currentContext.recommendations && currentContext.recommendations.length > 0 && (
+                        <p className="text-emerald-700/90 italic text-xs mt-1">
+                          Try: {currentContext.recommendations[0]}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {isListening && !liveTranscript && contextClues.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center mb-3">
@@ -414,7 +461,39 @@ export default function App() {
         )}
 
         {activeTab === "insights" && (
-          <WeeklyDashboard stats={sampleWeeklyStats} />
+          <>
+            {dashboardLoading && (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <p className="mt-3 text-sm">Loading your week…</p>
+              </div>
+            )}
+            {dashboardError && !dashboardLoading && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-700">
+                {dashboardError}
+              </div>
+            )}
+            {!dashboardLoading && !dashboardError && (
+              <WeeklyDashboard
+                stats={
+                  dashboardData
+                    ? {
+                        moodData: dashboardData.moodDataByDay,
+                        breathingBreaks: dashboardData.stats.totalBreathingBreaks,
+                        winsLogged: dashboardData.stats.totalWins,
+                        signalsSent: 0,
+                        topMood: dashboardData.topMood,
+                        insight:
+                          dashboardData.insights?.[0] ??
+                          dashboardData.suggestions?.[0] ??
+                          defaultWeeklyStats.insight,
+                      }
+                    : defaultWeeklyStats
+                }
+                period={dashboardData?.period}
+              />
+            )}
+          </>
         )}
 
         {activeTab === "courage" && (

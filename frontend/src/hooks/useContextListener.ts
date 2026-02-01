@@ -43,6 +43,7 @@ export interface ContextUpdate {
   audioEvents: string[];
   speakers: number;
   assessment: EnvironmentAssessment;
+  tone?: string;
   summary: string;
   triggers: string[];
   confidence: number;
