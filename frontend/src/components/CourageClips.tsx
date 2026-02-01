@@ -314,7 +314,7 @@ export function CourageClips({ userId, clips: externalClips, onClipsChange }: Co
                   When do you need encouragement?
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {triggers.map((trigger) => (
+                  {triggerLabels.map((trigger: string) => (
                     <button
                       key={trigger}
                       onClick={() => setSelectedTrigger(trigger)}

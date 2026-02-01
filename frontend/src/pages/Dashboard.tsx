@@ -50,12 +50,13 @@ export default function Dashboard() {
       const data = await getWeeklyDashboard(user?._id || 'demo-user');
       
       // Map backend response to frontend format
+      const s = data.stats ?? {};
       const mappedStats: WeeklyStats = {
-        totalSessions: data.stats?.totalEmotionLogs || data.stats?.totalSessions || 0,
-        calmMoments: data.stats?.totalWins || data.stats?.calmMoments || 0,
-        triggersEncountered: data.stats?.triggersEncountered || 0,
-        breathingUsed: data.stats?.totalBreathingBreaks || data.stats?.breathingUsed || 0,
-        journalsSaved: data.stats?.journalsSaved || 0,
+        totalSessions: s.totalEmotionLogs ?? s.totalSessions ?? 0,
+        calmMoments: s.totalWins ?? s.calmMoments ?? 0,
+        triggersEncountered: s.triggersEncountered ?? 0,
+        breathingUsed: s.totalBreathingBreaks ?? s.breathingUsed ?? 0,
+        journalsSaved: s.journalsSaved ?? 0,
       };
       setStats(mappedStats);
       
@@ -277,7 +278,7 @@ export default function Dashboard() {
           </motion.div>
 
           {/* Triggers Summary (non-judgmental) */}
-          {stats && stats.triggersEncountered > 0 && (
+          {stats && (stats.triggersEncountered ?? 0) > 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -288,7 +289,7 @@ export default function Dashboard() {
                 Moments that felt harder
               </h3>
               <p className="text-[var(--text-primary)]">
-                {stats.triggersEncountered} time{stats.triggersEncountered > 1 ? 's' : ''} this week — and you got through {stats.triggersEncountered > 1 ? 'all of them' : 'it'}.
+                {stats.triggersEncountered ?? 0} time{(stats.triggersEncountered ?? 0) > 1 ? 's' : ''} this week — and you got through {(stats.triggersEncountered ?? 0) > 1 ? 'all of them' : 'it'}.
               </p>
             </motion.div>
           )}

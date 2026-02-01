@@ -5,28 +5,49 @@ import { X, Wind } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-interface BreathingExerciseProps {
-  isOpen: boolean
-  onClose: () => void
-  onComplete: (feeling: "calm" | "stressed") => void
-}
-
 type Phase = "inhale" | "hold" | "exhale" | "rest"
 
-const phases: { phase: Phase; duration: number; label: string; instruction: string }[] = [
+const DEFAULT_PHASES: { phase: Phase; duration: number; label: string; instruction: string }[] = [
   { phase: "inhale", duration: 4000, label: "Breathe in", instruction: "through your nose" },
   { phase: "hold", duration: 4000, label: "Hold", instruction: "gently" },
   { phase: "exhale", duration: 6000, label: "Breathe out", instruction: "through your mouth" },
   { phase: "rest", duration: 2000, label: "Rest", instruction: "and reset" },
 ]
 
-export function BreathingExercise({ isOpen, onClose, onComplete }: BreathingExerciseProps) {
+const CONTEXTUAL_PHASES: { phase: Phase; duration: number; label: string; instruction: string }[] = [
+  { phase: "inhale", duration: 5000, label: "Breathe in", instruction: "through your nose" },
+  { phase: "exhale", duration: 5000, label: "Breathe out", instruction: "through your mouth" },
+]
+
+export type BreathingMode = "default" | "contextual"
+
+interface BreathingExerciseProps {
+  isOpen: boolean
+  onClose: () => void
+  onComplete: (feeling?: "calm" | "stressed") => void
+  /** When "contextual": 5s in/out, 3 cycles, no feedback step; onComplete() called with no args. */
+  mode?: BreathingMode
+  /** In contextual mode, start exercise immediately (no intro screen). */
+  startImmediately?: boolean
+}
+
+export function BreathingExercise({
+  isOpen,
+  onClose,
+  onComplete,
+  mode = "default",
+  startImmediately = false,
+}: BreathingExerciseProps) {
+  const isContextual = mode === "contextual"
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0)
   const [cycles, setCycles] = useState(0)
-  const [isActive, setIsActive] = useState(false)
+  const [isActive, setIsActive] = useState(() => isOpen && isContextual && startImmediately)
   const [showFeedback, setShowFeedback] = useState(false)
-  const [countdown, setCountdown] = useState(0)
+  const [countdown, setCountdown] = useState(() =>
+    isOpen && isContextual && startImmediately ? Math.ceil(CONTEXTUAL_PHASES[0].duration / 1000) : 0
+  )
 
+  const phases = isContextual ? CONTEXTUAL_PHASES : DEFAULT_PHASES
   const currentPhase = phases[currentPhaseIndex]
   const totalCycles = 3
 
@@ -58,7 +79,11 @@ export function BreathingExercise({ isOpen, onClose, onComplete }: BreathingExer
 
       if (cycles >= totalCycles - 1 && nextIndex === 0) {
         setIsActive(false)
-        setShowFeedback(true)
+        if (isContextual) {
+          onComplete()
+        } else {
+          setShowFeedback(true)
+        }
       }
     }, currentPhase.duration)
 
@@ -66,17 +91,19 @@ export function BreathingExercise({ isOpen, onClose, onComplete }: BreathingExer
       clearTimeout(timer)
       clearInterval(countdownInterval)
     }
-  }, [isOpen, isActive, currentPhaseIndex, currentPhase.duration, cycles, triggerHaptic])
+  }, [isOpen, isActive, currentPhaseIndex, currentPhase.duration, cycles, triggerHaptic, isContextual, onComplete])
 
   useEffect(() => {
     if (isOpen) {
       setCurrentPhaseIndex(0)
       setCycles(0)
-      setIsActive(false)
+      setIsActive(!!(isContextual && startImmediately))
       setShowFeedback(false)
-      setCountdown(0)
+      setCountdown(
+        isContextual && startImmediately ? Math.ceil(CONTEXTUAL_PHASES[0].duration / 1000) : 0
+      )
     }
-  }, [isOpen])
+  }, [isOpen, isContextual, startImmediately])
 
   if (!isOpen) return null
 
@@ -92,13 +119,14 @@ export function BreathingExercise({ isOpen, onClose, onComplete }: BreathingExer
       <button
         onClick={onClose}
         className="absolute right-4 top-4 rounded-full p-3 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+        aria-label={isContextual ? "Close and return to dashboard" : "Close"}
       >
         <X className="h-5 w-5" />
-        <span className="sr-only">Close</span>
+        <span className="sr-only">{isContextual ? "Close and return to dashboard" : "Close"}</span>
       </button>
 
-      <div className="flex flex-col items-center gap-8 px-6 text-center w-full max-w-sm">
-        {!isActive && !showFeedback && (
+      <div className="flex flex-col items-center gap-8 px-6 text-center w-full max-w-sm" aria-live="polite" aria-atomic="true">
+        {!isActive && !showFeedback && !(isContextual && startImmediately) && (
           <>
             <div className="space-y-3">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
@@ -130,8 +158,8 @@ export function BreathingExercise({ isOpen, onClose, onComplete }: BreathingExer
 
         {isActive && (
           <>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">
+            <div className="space-y-1" aria-live="polite">
+              <p className="text-sm text-muted-foreground" aria-label={`Cycle ${Math.min(cycles + 1, totalCycles)} of ${totalCycles}`}>
                 Cycle {Math.min(cycles + 1, totalCycles)} of {totalCycles}
               </p>
             </div>
@@ -158,7 +186,7 @@ export function BreathingExercise({ isOpen, onClose, onComplete }: BreathingExer
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1" aria-live="polite" aria-label={currentPhase.label}>
               <p className="text-xl font-medium text-foreground">
                 {currentPhase.label}
               </p>
@@ -185,7 +213,7 @@ export function BreathingExercise({ isOpen, onClose, onComplete }: BreathingExer
           </>
         )}
 
-        {showFeedback && (
+        {showFeedback && !isContextual && (
           <div className="space-y-8 w-full">
             <div className="space-y-2">
               <h2 className="text-2xl font-semibold text-foreground">Nice work!</h2>

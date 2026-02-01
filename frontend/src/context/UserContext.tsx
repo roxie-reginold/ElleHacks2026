@@ -17,6 +17,8 @@ export interface User {
   trustedAdult?: TrustedAdult;
   focusMoments: number;
   journalPrompts: string[];
+  /** Used for teacher vs student view; optional for backwards compatibility */
+  role?: 'student' | 'teacher';
 }
 
 interface UserContextType {
