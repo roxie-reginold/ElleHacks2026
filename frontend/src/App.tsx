@@ -1,23 +1,22 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import { Navigation } from "@/components/ui/Navigation"
+import { useUser } from "@/context/UserContext"
 import { BreathingExercise } from "@/components/BreathingExercise"
-
 import { BreathingContextPrompt } from "@/components/BreathingContextPrompt"
-import { AudioAnalyzer } from "@/components/AudioAnalyzer"
 import { MoodTracker, type Mood } from "@/components/MoodTracker"
 import { FaceEmotionCheck } from "@/components/FaceEmotionCheck"
-import type { ContextLabel } from "@/types/breathing"
 import { TeacherSignal } from "@/components/TeacherSignal"
 import { CourageClips, type CourageClip } from "@/components/CourageClips"
 import { WeeklyDashboard } from "@/components/WeeklyDashboard"
 import { ContextClueOverlay } from "@/components/ContextClueOverlay"
-import { useUser } from "@/context/UserContext"
 import { useContextListener } from "@/hooks/useContextListener"
 import { Wind, Sparkles, Heart, MessageCircle, X, Smile, Volume2, Users, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { incrementFocusMoments, getWeeklyDashboard, type WeeklyDashboardApiResponse } from "@/services/api"
+import { incrementFocusMoments } from "@/services/api"
+import type { ContextLabel } from "@/types/breathing"
 
 interface ContextClue {
   id: string
@@ -26,21 +25,21 @@ interface ContextClue {
   suggestion?: string
 }
 
-const defaultWeeklyStats = {
+const sampleWeeklyStats = {
   moodData: [
-    { day: "Mon", mood: 3 },
-    { day: "Tue", mood: 3 },
+    { day: "Mon", mood: 4 },
+    { day: "Tue", mood: 5 },
     { day: "Wed", mood: 3 },
-    { day: "Thu", mood: 3 },
-    { day: "Fri", mood: 3 },
-    { day: "Sat", mood: 3 },
-    { day: "Sun", mood: 3 },
+    { day: "Thu", mood: 4 },
+    { day: "Fri", mood: 4 },
+    { day: "Sat", mood: 5 },
+    { day: "Sun", mood: 4 },
   ],
-  breathingBreaks: 0,
-  winsLogged: 0,
-  signalsSent: 0,
-  topMood: "—",
-  insight: "Log your mood and use the app this week to see insights here.",
+  breathingBreaks: 12,
+  winsLogged: 8,
+  signalsSent: 3,
+  topMood: "Good",
+  insight: "You're calmer on Tuesdays. Group work days seem to go better when you use your breathing exercises first.",
 }
 
 const typeConfig = {
@@ -75,27 +74,27 @@ const typeConfig = {
 }
 
 export default function App() {
-  const { user } = useUser()
+  const { user, updatePreferences } = useUser()
+  const navigate = useNavigate()
   const userId = user?._id || 'demo-user'
 
   const [activeTab, setActiveTab] = useState("home")
   const [contextClues, setContextClues] = useState<ContextClue[]>([])
   const [currentClue, setCurrentClue] = useState<ContextClue | null>(null)
   const [showBreathing, setShowBreathing] = useState(false)
-  /** When set, the context-aware breathing flow is active (full-page). Prompt → exercise → dashboard. */
-  const [breathingContextFlow, setBreathingContextFlow] = useState<ContextLabel | null>(null)
-  /** When true, we're in the exercise phase of the context flow (after "Start breathing"). */
-  const [breathingContextExercise, setBreathingContextExercise] = useState(false)
   const [todaysMood, setTodaysMood] = useState<Mood | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [stressAlert, setStressAlert] = useState(false)
   const [courageClips, setCourageClips] = useState<CourageClip[]>([])
+  /** When set, the context-aware breathing flow is active (full-page). Prompt → exercise → home. */
+  const [breathingContextFlow, setBreathingContextFlow] = useState<ContextLabel | null>(null)
+  /** When true, we're in the exercise phase (after "Start breathing"). */
+  const [breathingContextExercise, setBreathingContextExercise] = useState(false)
 
-  // Real-time ElevenLabs transcription + Gemini tone/social cue analysis
+  // Real-time ElevenLabs transcription
   const {
     isStreaming,
     liveTranscript,
-    currentContext,
     startListening: startRealListening,
     stopListening: stopRealListening,
     connect,
@@ -110,17 +109,6 @@ export default function App() {
     setIsListening(isStreaming)
   }, [isStreaming])
 
-  // Fetch real dashboard when Insights tab is shown
-  useEffect(() => {
-    if (activeTab !== "insights") return
-    setDashboardError(null)
-    setDashboardLoading(true)
-    getWeeklyDashboard(userId)
-      .then((data) => setDashboardData(data))
-      .catch((err) => setDashboardError(err instanceof Error ? err.message : "Failed to load dashboard"))
-      .finally(() => setDashboardLoading(false))
-  }, [activeTab, userId])
-
   const handleStartListening = async () => {
     connect()
     await new Promise(resolve => setTimeout(resolve, 500))
@@ -130,28 +118,6 @@ export default function App() {
   const handleStopListening = () => {
     stopRealListening()
   }
-
-  const handleContextClue = useCallback((clue: ContextClue) => {
-    const clueWithSuggestion = {
-      ...clue,
-      suggestion: clue.type === "joke"
-        ? "Try smiling or nodding to show you got it"
-        : clue.type === "sarcasm"
-          ? "They mean the opposite of what they said"
-          : clue.type === "tone"
-            ? "Take a breath, their tone may not be about you"
-            : "Notice the social cue and respond naturally"
-    }
-    setContextClues(prev => [clueWithSuggestion, ...prev].slice(0, 10))
-    setCurrentClue(clueWithSuggestion)
-  }, [])
-
-  const handleStressDetected = useCallback(() => {
-    if ("vibrate" in navigator) {
-      navigator.vibrate([100, 50, 100, 50, 100])
-    }
-    setStressAlert(true)
-  }, [])
 
   const handleBreathingComplete = useCallback(async (feeling?: "calm" | "stressed") => {
     setShowBreathing(false)
@@ -167,8 +133,11 @@ export default function App() {
 
   const handleMoodSelect = useCallback((mood: Mood) => {
     setTodaysMood(mood)
-    if (mood === "tough" || mood === "hard") {
-      setBreathingContextFlow(mood)
+  }, [])
+
+  const handleEmotionChange = useCallback((emotion: "sad" | "happy" | "confused") => {
+    if (emotion === "sad" || emotion === "confused") {
+      setBreathingContextFlow(emotion)
       setBreathingContextExercise(false)
     }
   }, [])
@@ -180,20 +149,11 @@ export default function App() {
   const handleBreathingContextMaybeLater = useCallback(() => {
     setBreathingContextFlow(null)
     setBreathingContextExercise(false)
-    setActiveTab("home")
   }, [])
 
   const handleBreathingContextComplete = useCallback(() => {
     setBreathingContextFlow(null)
     setBreathingContextExercise(false)
-    setActiveTab("home")
-  }, [])
-
-  const handleEmotionChange = useCallback((emotion: "sad" | "happy" | "confused") => {
-    if (emotion === "sad" || emotion === "confused") {
-      setBreathingContextFlow(emotion)
-      setBreathingContextExercise(false)
-    }
   }, [])
 
   const handleTeacherSignal = useCallback((_type: "question" | "slow" | "help") => {
@@ -208,14 +168,6 @@ export default function App() {
     setContextClues(prev => prev.filter(c => c.id !== id))
   }
 
-  const handleListeningChange = (listening: boolean) => {
-    setIsListening(listening)
-    if (!listening) {
-      setContextClues([])
-      setCurrentClue(null)
-    }
-  }
-
   const dismissOverlayClue = useCallback(() => {
     setCurrentClue(null)
   }, [])
@@ -224,14 +176,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background lg:pl-20">
-      {/* Manual Breathe button: overlay BreathingExercise (default mode) */}
       <BreathingExercise
         isOpen={showBreathing}
         onClose={() => setShowBreathing(false)}
         onComplete={handleBreathingComplete}
       />
 
-      {/* Full-page context-aware flow: no header/nav until complete or "Maybe later" */}
+      {/* Full-page context-aware flow: prompt → exercise → back to home */}
       {isContextFlowActive && !breathingContextExercise && (
         <BreathingContextPrompt
           context={breathingContextFlow}
@@ -241,9 +192,9 @@ export default function App() {
       )}
       {isContextFlowActive && breathingContextExercise && (
         <BreathingExercise
-          isOpen
+          isOpen={true}
           mode="contextual"
-          startImmediately
+          startImmediately={true}
           onClose={handleBreathingContextMaybeLater}
           onComplete={handleBreathingContextComplete}
         />
@@ -262,13 +213,27 @@ export default function App() {
             <span className="font-semibold text-foreground">CalmSpace</span>
           </div>
           <h1 className="hidden lg:block text-lg font-semibold text-foreground">CalmSpace</h1>
-          <button
-            onClick={() => setShowBreathing(true)}
-            className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20 active:scale-95"
-          >
-            <Wind className="h-4 w-4" />
-            Breathe
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBreathing(true)}
+              className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20 active:scale-95"
+            >
+              <Wind className="h-4 w-4" />
+              Breathe
+            </button>
+            <Link
+              to="/teacher-dashboard"
+              onClick={(e) => {
+                if (user?.role !== "teacher") {
+                  e.preventDefault()
+                  updatePreferences({ role: "teacher" }).then(() => navigate("/teacher-dashboard"))
+                }
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground hidden sm:inline"
+            >
+              Teacher view
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -343,7 +308,6 @@ export default function App() {
                 todaysMood={todaysMood}
               />
 
-
               <div className="rounded-2xl border border-border bg-card p-5">
                 <h3 className="font-semibold text-foreground mb-1">Mood Analyser</h3>
                 <p className="text-sm text-muted-foreground mb-4">
@@ -352,8 +316,7 @@ export default function App() {
                 <FaceEmotionCheck className="mt-0" onEmotionChange={handleEmotionChange} />
               </div>
 
-              <TeacherSignal 
-
+              <TeacherSignal
                 studentId={userId}
                 onSignal={handleTeacherSignal}
               />
@@ -430,41 +393,6 @@ export default function App() {
                   </div>
                 )}
 
-                {isListening && currentContext && (currentContext.summary || currentContext.tone || currentContext.assessment) && (
-                  <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-4 w-4 text-emerald-500" />
-                      <p className="text-xs font-medium text-emerald-600">Tone & social cue (Gemini)</p>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      {(currentContext.tone && currentContext.tone !== 'unknown') && (
-                        <p className="text-foreground">
-                          <span className="text-muted-foreground">Tone:</span>{' '}
-                          <span className="font-medium capitalize">{currentContext.tone}</span>
-                        </p>
-                      )}
-                      <p className="text-muted-foreground">
-                        <span className="text-muted-foreground">Vibe:</span>{' '}
-                        <span className="capitalize">{currentContext.assessment}</span>
-                      </p>
-                      {currentContext.summary && (
-                        <p className="text-foreground leading-relaxed">{currentContext.summary}</p>
-                      )}
-                      {currentContext.triggers && currentContext.triggers.length > 0 && (
-                        <p className="text-foreground">
-                          <span className="text-muted-foreground">Noted:</span>{' '}
-                          {currentContext.triggers.join(', ')}
-                        </p>
-                      )}
-                      {currentContext.recommendations && currentContext.recommendations.length > 0 && (
-                        <p className="text-emerald-700/90 italic text-xs mt-1">
-                          Try: {currentContext.recommendations[0]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 {isListening && !liveTranscript && contextClues.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
                     <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center mb-3">
@@ -530,39 +458,7 @@ export default function App() {
         )}
 
         {activeTab === "insights" && (
-          <>
-            {dashboardLoading && (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                <p className="mt-3 text-sm">Loading your week…</p>
-              </div>
-            )}
-            {dashboardError && !dashboardLoading && (
-              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-700">
-                {dashboardError}
-              </div>
-            )}
-            {!dashboardLoading && !dashboardError && (
-              <WeeklyDashboard
-                stats={
-                  dashboardData
-                    ? {
-                        moodData: dashboardData.moodDataByDay,
-                        breathingBreaks: dashboardData.stats.totalBreathingBreaks,
-                        winsLogged: dashboardData.stats.totalWins,
-                        signalsSent: 0,
-                        topMood: dashboardData.topMood,
-                        insight:
-                          dashboardData.insights?.[0] ??
-                          dashboardData.suggestions?.[0] ??
-                          defaultWeeklyStats.insight,
-                      }
-                    : defaultWeeklyStats
-                }
-                period={dashboardData?.period}
-              />
-            )}
-          </>
+          <WeeklyDashboard stats={sampleWeeklyStats} />
         )}
 
         {activeTab === "courage" && (
