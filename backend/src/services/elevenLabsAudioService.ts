@@ -147,8 +147,8 @@ export async function isolateVoice(
       if (fs.existsSync(tempInputPath)) {
         fs.unlinkSync(tempInputPath);
       }
-    } catch {}
-    
+    } catch { }
+
     // Return original audio if isolation fails (graceful degradation)
     return {
       success: true,
@@ -245,14 +245,16 @@ export async function transcribeWithTags(
 
     // Extract audio events from transcription
     const audioEvents = extractAudioEvents(result);
-    
+
     // Extract speaker diarization
     const speakers = extractSpeakers(result);
-    
+
     // Extract word timestamps
     const words = extractWords(result);
 
     console.log(`Transcription completed: ${audioEvents.length} events detected, ${speakers.length} speakers`);
+    console.log(`📝 Transcript text: "${result.text || ''}"`);
+    console.log(`   Audio events: ${audioEvents.join(', ') || 'none'}`);
 
     return {
       success: true,
@@ -286,7 +288,7 @@ export async function transcribeWithTags(
  */
 function extractAudioEvents(result: any): string[] {
   const events: string[] = [];
-  
+
   // Check for audio_events field in response
   if (result.audio_events && Array.isArray(result.audio_events)) {
     for (const event of result.audio_events) {
@@ -295,7 +297,7 @@ function extractAudioEvents(result: any): string[] {
       }
     }
   }
-  
+
   // Also check for inline tags in transcript [Laughter], [Applause], etc.
   const text = result.text || '';
   const tagRegex = /\[(Laughter|Applause|Music|Silence|Background_Noise|Coughing|Sneezing)\]/gi;
@@ -323,7 +325,7 @@ function extractAudioEvents(result: any): string[] {
  */
 function extractSpeakers(result: any): Speaker[] {
   const speakers: Speaker[] = [];
-  
+
   if (result.speakers && Array.isArray(result.speakers)) {
     for (const speaker of result.speakers) {
       speakers.push({
@@ -337,7 +339,7 @@ function extractSpeakers(result: any): Speaker[] {
       });
     }
   }
-  
+
   // If no diarization data, create default speaker
   if (speakers.length === 0 && result.text) {
     speakers.push({
@@ -359,7 +361,7 @@ function extractSpeakers(result: any): Speaker[] {
  */
 function extractWords(result: any): WordTimestamp[] {
   const words: WordTimestamp[] = [];
-  
+
   if (result.words && Array.isArray(result.words)) {
     for (const word of result.words) {
       words.push({
@@ -412,7 +414,7 @@ export async function processContextAudio(
     if (!skipIsolation) {
       console.log('Step 1: Isolating voice from background noise...');
       const isolationResult = await isolateVoice(rawAudioBuffer);
-      
+
       if (isolationResult.success && isolationResult.audioBuffer) {
         audioToTranscribe = isolationResult.audioBuffer;
         isolatedPath = isolationResult.audioPath;

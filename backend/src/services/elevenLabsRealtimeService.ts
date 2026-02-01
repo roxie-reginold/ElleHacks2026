@@ -118,10 +118,10 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
           // Build WebSocket URL with query params
           // Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
           const url = new URL(this.WS_URL);
-          
+
           // Required: model_id
           url.searchParams.set('model_id', 'scribe_v2_realtime');
-          
+
           // Optional parameters per documentation
           if (this.config.languageCode) {
             url.searchParams.set('language_code', this.config.languageCode);
@@ -159,7 +159,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
             console.log(`🔌 ElevenLabs Realtime disconnected: ${code} - ${reason.toString()}`);
             this.isConnected = false;
             this.emit('disconnected', reason.toString());
-            
+
             // H3 FIX: Only reconnect if allowed and under total limit
             // Don't reconnect if intentionally disconnected (shouldReconnect=false)
             // Also limit total reconnects across all attempts to prevent infinite loops
@@ -196,7 +196,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
   disconnect(): void {
     // H3 FIX: Prevent reconnection when intentionally disconnecting
     this.shouldReconnect = false;
-    
+
     if (this.ws) {
       // Send end-of-stream signal
       this.sendEndOfStream();
@@ -223,10 +223,10 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
 
     try {
       // Convert to Buffer if ArrayBuffer
-      const buffer = audioData instanceof ArrayBuffer 
-        ? Buffer.from(audioData) 
+      const buffer = audioData instanceof ArrayBuffer
+        ? Buffer.from(audioData)
         : audioData;
-      
+
       // Encode audio as base64 and send as input_audio_chunk message
       // Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
       // FIX: Must include message_type: "input_audio_chunk" - this was missing!
@@ -235,7 +235,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
         audio_base_64: buffer.toString('base64'),
         sample_rate: this.config.sampleRate || 16000,
       };
-      
+
       this.ws.send(JSON.stringify(message));
     } catch (error) {
       console.error('Error sending audio:', error);
@@ -287,18 +287,18 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
   private handleMessage(data: WebSocket.Data): void {
     try {
       const message = JSON.parse(data.toString());
-      
+
       // ElevenLabs uses 'message_type' not 'type'
       // Evidence: debug log showed keys: ["message_type","session_id","config"]
       const messageType = message.message_type || message.type || message.event || message.kind;
-      
+
       // Handle different message types from ElevenLabs Realtime API
       switch (messageType) {
         case 'session_started':
         case 'session.started':
           console.log('📡 ElevenLabs session started:', message.session_id || message.sessionId);
           break;
-          
+
         case 'partial_transcript':
           // Live transcript update (not final)
           this.handleTranscript({
@@ -306,7 +306,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
             isFinal: false,
           });
           break;
-          
+
         case 'committed_transcript':
           // Finalized transcript segment
           this.handleTranscript({
@@ -314,7 +314,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
             isFinal: true,
           });
           break;
-          
+
         case 'committed_transcript_with_timestamps':
           // Finalized with word timestamps
           this.handleTranscript({
@@ -323,7 +323,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
             words: message.words,
           });
           break;
-          
+
         // Error events
         case 'auth_error':
         case 'quota_exceeded':
@@ -340,7 +340,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
           console.error('ElevenLabs error:', messageType, message.message || message.error);
           this.emit('error', new Error(`${messageType}: ${message.message || message.error || 'Unknown error'}`));
           break;
-          
+
         case undefined:
         case null:
           // H4 FIX: Handle messages without type (like acks, keep-alives, or different structures)
@@ -358,7 +358,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
           }
           // Don't log as unknown for expected no-type messages
           break;
-          
+
         default:
           // Handle generic transcript format for backward compatibility
           if (message.text !== undefined) {
@@ -392,6 +392,9 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
       confidence: message.confidence,
     };
 
+    // Log transcript for debugging
+    console.log(`🎯 ElevenLabs transcript: "${transcript.text}" (final: ${transcript.isFinal})`);
+
     // Check for inline audio tags like [Laughter]
     const audioTagRegex = /\[(Laughter|Applause|Music|Silence|Coughing|Background_Noise)\]/gi;
     const matches = transcript.text.match(audioTagRegex);
@@ -413,6 +416,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
     if (transcript.isFinal) {
       this.accumulatedTranscript += ' ' + transcript.text;
       this.accumulatedTranscript = this.accumulatedTranscript.trim();
+      console.log(`📋 Accumulated transcript: "${this.accumulatedTranscript}"`);
     }
 
     this.emit('transcript', transcript);
@@ -503,7 +507,7 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
  */
 export function createRealtimeClient(config?: Partial<RealtimeConfig>): ElevenLabsRealtimeClient | null {
   const apiKey = config?.apiKey || process.env.ELEVENLABS_API_KEY;
-  
+
   if (!apiKey) {
     console.warn('No ElevenLabs API key available for realtime service');
     return null;
