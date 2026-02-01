@@ -21,7 +21,7 @@ const openrouter = process.env.OPEN_ROUTER_API_KEY
   : null;
 
 // OpenRouter model for Gemini
-const GEMINI_MODEL = 'google/gemini-flash-1.5';
+const GEMINI_MODEL = 'google/gemini-2.5-flash';
 
 export interface DetectionEvent {
   t: number;

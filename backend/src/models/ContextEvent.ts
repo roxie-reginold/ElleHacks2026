@@ -44,7 +44,7 @@ export interface IContextEvent extends Document {
 const ContextEventSchema = new Schema<IContextEvent>(
   {
     userId: {
-      type: Schema.Types.Mixed,  // Can be ObjectId or string (for demo mode)
+      type: String,  // String to support both ObjectId strings and demo IDs like "demo-user"
       required: true,
       index: true,
     },

@@ -6,8 +6,8 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from parent directory
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Import routes
 import analyzeRoutes from './routes/analyze';
@@ -27,6 +27,7 @@ import { analyzeSocialContext, getQuickEventInterpretation } from './services/ge
 import { generateCalmingPrompt } from './services/elevenLabsService';
 import { ElevenLabsRealtimeClient, createRealtimeClient } from './services/elevenLabsRealtimeService';
 import ContextEvent from './models/ContextEvent';
+import { seedContextClues } from './models/ContextClue';
 
 // Store active realtime clients per socket
 const realtimeClients = new Map<string, ElevenLabsRealtimeClient>();
@@ -471,8 +472,16 @@ const connectDB = async () => {
   
   if (mongoUri) {
     try {
-      await mongoose.connect(mongoUri);
+      // Recommended connection options for MongoDB
+      await mongoose.connect(mongoUri, {
+        maxPoolSize: 10,           // Maximum number of connections in the pool
+        serverSelectionTimeoutMS: 5000,  // Timeout for server selection
+        socketTimeoutMS: 45000,    // Close sockets after 45s of inactivity
+      });
       console.log('✅ Connected to MongoDB');
+      
+      // Seed context clues after connection is established
+      await seedContextClues();
     } catch (error) {
       console.warn('⚠️ MongoDB connection failed, using in-memory storage');
       console.error(error);
@@ -481,6 +490,22 @@ const connectDB = async () => {
     console.log('ℹ️ No MONGODB_URI provided, using in-memory storage');
   }
 };
+
+// Graceful shutdown - close MongoDB connection
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n${signal} received. Closing MongoDB connection...`);
+  try {
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error closing MongoDB connection:', error);
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Start server
 const startServer = async () => {

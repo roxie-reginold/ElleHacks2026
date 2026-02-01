@@ -68,14 +68,17 @@ export interface VoiceIsolationResult {
 
 // ============================================================================
 // Voice Isolator
-// Ref: https://elevenlabs.io/docs/overview/capabilities/voice-isolator
+// Ref: https://elevenlabs.io/docs/api-reference/audio-isolation/stream
 // ============================================================================
 
 /**
  * Isolate voices from background noise in classroom audio.
  * Removes AC hum, chair scraping, ambient chatter, etc.
  * 
- * @param audioBuffer - Raw audio buffer from Web Audio API
+ * NOTE: Voice isolation requires valid audio input (not raw PCM).
+ * For real-time streaming, we skip isolation and use the Realtime API directly.
+ * 
+ * @param audioBuffer - Raw audio buffer (must be valid audio format like WAV/MP3)
  * @returns Clean audio with isolated voices
  */
 export async function isolateVoice(
@@ -89,28 +92,25 @@ export async function isolateVoice(
     };
   }
 
+  // Validate that the buffer is not empty and has reasonable size
+  if (!audioBuffer || audioBuffer.length < 100) {
+    console.log('Audio buffer too small or empty, skipping isolation');
+    return {
+      success: true,
+      audioBuffer: audioBuffer,
+      error: 'Audio buffer too small',
+    };
+  }
+
   try {
     // Create a temporary file for the audio input
     const tempInputPath = path.join('/tmp', `voice_input_${Date.now()}.wav`);
     fs.writeFileSync(tempInputPath, audioBuffer);
 
-    // Call ElevenLabs Voice Isolator API
-    // Ref: https://elevenlabs.io/docs/overview/capabilities/voice-isolator
-    // Note: API method may vary by SDK version
-    const audioIsolationClient = elevenlabs.audioIsolation as any;
-    const isolateMethod = audioIsolationClient.isolate || audioIsolationClient.audioIsolation || audioIsolationClient.convert;
-    
-    if (!isolateMethod) {
-      console.log('Voice isolation API not available, returning original audio');
-      fs.unlinkSync(tempInputPath);
-      return {
-        success: true,
-        audioBuffer: audioBuffer,
-        audioPath: undefined,
-      };
-    }
-
-    const isolatedAudio = await isolateMethod.call(audioIsolationClient, {
+    // Call ElevenLabs Voice Isolator API using the stream method
+    // Ref: https://elevenlabs.io/docs/api-reference/audio-isolation/stream
+    // SDK method: client.audioIsolation.stream({ audio: file })
+    const isolatedAudio = await elevenlabs.audioIsolation.stream({
       audio: fs.createReadStream(tempInputPath),
     });
 
@@ -141,7 +141,15 @@ export async function isolateVoice(
     };
   } catch (error: any) {
     console.error('Voice isolation error:', error);
-    // Return original audio if isolation fails
+    // Clean up temp file if it exists
+    try {
+      const tempInputPath = path.join('/tmp', `voice_input_${Date.now()}.wav`);
+      if (fs.existsSync(tempInputPath)) {
+        fs.unlinkSync(tempInputPath);
+      }
+    } catch {}
+    
+    // Return original audio if isolation fails (graceful degradation)
     return {
       success: true,
       audioBuffer: audioBuffer,
@@ -196,13 +204,28 @@ export async function transcribeWithTags(
     tagAudioEvents = true,
   } = options;
 
+  // Validate that the buffer is not empty and has reasonable size
+  if (!audioBuffer || audioBuffer.length < 100) {
+    console.log('Audio buffer too small or empty for transcription');
+    return {
+      success: false,
+      transcript: '',
+      audioEvents: [],
+      speakers: [],
+      words: [],
+      language: 'en',
+      error: 'Audio buffer too small for transcription',
+    };
+  }
+
   try {
     // Create temporary file for audio input
     const tempPath = path.join('/tmp', `scribe_input_${Date.now()}.wav`);
     fs.writeFileSync(tempPath, audioBuffer);
 
     // Call ElevenLabs Scribe v2 API
-    // Ref: https://elevenlabs.io/docs/overview/capabilities/speech-to-text
+    // Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/convert
+    // SDK uses camelCase parameter names
     const transcription = await elevenlabs.speechToText.convert({
       file: fs.createReadStream(tempPath),
       modelId: 'scribe_v2',  // Use Scribe v2 model
@@ -210,6 +233,7 @@ export async function transcribeWithTags(
       tagAudioEvents: tagAudioEvents,
       diarize: true,
       numSpeakers: numSpeakers,
+      timestampsGranularity: 'word',
     });
 
     // Clean up temp file

@@ -89,7 +89,8 @@ export async function textToSpeech(
       .withRawResponse();
 
     // Access character cost and request ID from headers
-    const characterCount = rawResponse.headers.get('x-character-count');
+    // Per ElevenLabs API: 'character-cost' is the correct header (not 'x-character-count')
+    const characterCount = rawResponse.headers.get('character-cost');
     const requestId = rawResponse.headers.get('request-id');
 
     // Determine output path (save to backend/audio directory in repo)

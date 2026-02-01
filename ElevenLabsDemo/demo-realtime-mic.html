@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ElevenLabs Real-time Transcription Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 2rem;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 30px;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+    
+    button {
+      padding: 15px 30px;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 600;
+    }
+    
+    #startBtn {
+      background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
+      color: #000;
+    }
+    
+    #startBtn:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(0, 217, 255, 0.5);
+    }
+    
+    #stopBtn {
+      background: linear-gradient(135deg, #ff4757 0%, #ff6b81 100%);
+      color: #fff;
+    }
+    
+    #stopBtn:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(255, 71, 87, 0.5);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .status {
+      text-align: center;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    
+    .status.disconnected { background: rgba(255, 71, 87, 0.2); color: #ff6b81; }
+    .status.connecting { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+    .status.connected { background: rgba(0, 255, 136, 0.2); color: #00ff88; }
+    .status.listening { background: rgba(0, 217, 255, 0.2); color: #00d9ff; }
+    
+    .transcript-box {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 15px;
+      padding: 25px;
+      min-height: 200px;
+      margin-bottom: 20px;
+    }
+    
+    .transcript-box h3 {
+      color: #00d9ff;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    #liveTranscript {
+      font-size: 1.5rem;
+      line-height: 1.6;
+      color: #aaa;
+      min-height: 50px;
+    }
+    
+    #liveTranscript .partial {
+      color: #666;
+      font-style: italic;
+    }
+    
+    #liveTranscript .final {
+      color: #fff;
+    }
+    
+    #finalTranscript {
+      font-size: 1.2rem;
+      line-height: 1.8;
+      color: #fff;
+      white-space: pre-wrap;
+    }
+    
+    .visualizer {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      height: 60px;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
+    
+    .visualizer-bar {
+      width: 8px;
+      background: linear-gradient(to top, #00d9ff, #00ff88);
+      border-radius: 4px;
+      transition: height 0.05s ease;
+    }
+    
+    .info {
+      background: rgba(0, 217, 255, 0.1);
+      border: 1px solid rgba(0, 217, 255, 0.3);
+      border-radius: 10px;
+      padding: 15px;
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+    
+    .info code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #00d9ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎙️ ElevenLabs Real-time Transcription</h1>
+    <p class="subtitle">Speak into your microphone and see live transcription</p>
+    
+    <div class="visualizer" id="visualizer">
+      <!-- Bars will be added by JavaScript -->
+    </div>
+    
+    <div class="controls">
+      <button id="startBtn">🎤 Start Listening</button>
+      <button id="stopBtn" disabled>⏹️ Stop</button>
+    </div>
+    
+    <div class="status disconnected" id="status">Not connected</div>
+    
+    <div class="transcript-box">
+      <h3>📝 Live Transcript</h3>
+      <div id="liveTranscript">Click "Start Listening" and speak...</div>
+    </div>
+    
+    <div class="transcript-box">
+      <h3>✅ Final Transcript</h3>
+      <div id="finalTranscript"></div>
+    </div>
+    
+    <div class="info">
+      <strong>How it works:</strong> This demo captures audio from your microphone, 
+      streams it to ElevenLabs <code>scribe_v2_realtime</code> via WebSocket, 
+      and displays the transcription in real-time (~150ms latency).
+    </div>
+  </div>
+
+  <script>
+    // Configuration - connects to your backend which proxies to ElevenLabs
+    const BACKEND_URL = 'http://localhost:3001';
+    
+    // DOM Elements
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusEl = document.getElementById('status');
+    const liveTranscriptEl = document.getElementById('liveTranscript');
+    const finalTranscriptEl = document.getElementById('finalTranscript');
+    const visualizerEl = document.getElementById('visualizer');
+    
+    // State
+    let socket = null;
+    let mediaStream = null;
+    let audioContext = null;
+    let scriptProcessor = null;
+    let analyser = null;
+    let isListening = false;
+    
+    // Create visualizer bars
+    for (let i = 0; i < 20; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'visualizer-bar';
+      bar.style.height = '5px';
+      visualizerEl.appendChild(bar);
+    }
+    const bars = visualizerEl.querySelectorAll('.visualizer-bar');
+    
+    // Update status display
+    function setStatus(status, text) {
+      statusEl.className = `status ${status}`;
+      statusEl.textContent = text;
+    }
+    
+    // Update visualizer
+    function updateVisualizer() {
+      if (!analyser || !isListening) {
+        bars.forEach(bar => bar.style.height = '5px');
+        return;
+      }
+      
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(dataArray);
+      
+      const step = Math.floor(dataArray.length / bars.length);
+      bars.forEach((bar, i) => {
+        const value = dataArray[i * step];
+        const height = Math.max(5, (value / 255) * 60);
+        bar.style.height = `${height}px`;
+      });
+      
+      requestAnimationFrame(updateVisualizer);
+    }
+    
+    // Start listening
+    async function startListening() {
+      try {
+        setStatus('connecting', 'Connecting...');
+        
+        // Load socket.io from CDN
+        if (!window.io) {
+          await loadScript('https://cdn.socket.io/4.7.2/socket.io.min.js');
+        }
+        
+        // Connect to backend WebSocket
+        socket = io(BACKEND_URL, { transports: ['websocket'] });
+        
+        socket.on('connect', () => {
+          console.log('Connected to backend');
+          socket.emit('auth', { userId: 'demo-realtime-mic' });
+          socket.emit('session:start');
+        });
+        
+        socket.on('session:started', async (data) => {
+          console.log('Session started:', data.sessionId);
+          setStatus('connecting', 'Starting audio stream...');
+          
+          // Start the realtime stream
+          socket.emit('stream:start');
+        });
+        
+        socket.on('stream:connected', async () => {
+          console.log('ElevenLabs stream connected');
+          setStatus('connected', 'Connected! Starting microphone...');
+          
+          // Get microphone access
+          try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({ 
+              audio: {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+              }
+            });
+            
+            // Set up audio processing
+            audioContext = new AudioContext({ sampleRate: 16000 });
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            
+            // Create analyser for visualization
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            
+            // Create script processor for capturing audio
+            scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+            source.connect(scriptProcessor);
+            scriptProcessor.connect(audioContext.destination);
+            
+            scriptProcessor.onaudioprocess = (e) => {
+              if (!isListening) return;
+              
+              const inputData = e.inputBuffer.getChannelData(0);
+              
+              // Convert float32 to int16
+              const pcm16 = new Int16Array(inputData.length);
+              for (let i = 0; i < inputData.length; i++) {
+                const s = Math.max(-1, Math.min(1, inputData[i]));
+                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+              }
+              
+              // Send as base64 to backend
+              const buffer = new Uint8Array(pcm16.buffer);
+              const base64 = btoa(String.fromCharCode.apply(null, buffer));
+              socket.emit('audio:stream', base64);
+            };
+            
+            isListening = true;
+            setStatus('listening', '🎤 Listening... Speak now!');
+            liveTranscriptEl.innerHTML = '<span class="partial">Listening...</span>';
+            
+            // Start visualizer
+            updateVisualizer();
+            
+            // Update UI
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            
+          } catch (micError) {
+            console.error('Microphone error:', micError);
+            setStatus('disconnected', `Microphone error: ${micError.message}`);
+            cleanup();
+          }
+        });
+        
+        // Handle transcripts
+        socket.on('transcript:realtime', (data) => {
+          console.log('Transcript:', data);
+          if (data.text) {
+            if (data.isFinal) {
+              // Final transcript
+              liveTranscriptEl.innerHTML = `<span class="final">${data.text}</span>`;
+              finalTranscriptEl.textContent += data.text + ' ';
+            } else {
+              // Partial transcript
+              liveTranscriptEl.innerHTML = `<span class="partial">${data.text}</span>`;
+            }
+          }
+        });
+        
+        socket.on('error', (err) => {
+          console.error('Socket error:', err);
+          setStatus('disconnected', `Error: ${err.message || err}`);
+        });
+        
+        socket.on('disconnect', () => {
+          console.log('Disconnected');
+          if (isListening) {
+            setStatus('disconnected', 'Disconnected');
+            cleanup();
+          }
+        });
+        
+      } catch (error) {
+        console.error('Error:', error);
+        setStatus('disconnected', `Error: ${error.message}`);
+        cleanup();
+      }
+    }
+    
+    // Stop listening
+    function stopListening() {
+      setStatus('disconnected', 'Stopping...');
+      
+      if (socket) {
+        socket.emit('stream:stop');
+        socket.emit('session:end');
+      }
+      
+      cleanup();
+      setStatus('disconnected', 'Stopped');
+    }
+    
+    // Cleanup resources
+    function cleanup() {
+      isListening = false;
+      
+      if (scriptProcessor) {
+        scriptProcessor.disconnect();
+        scriptProcessor = null;
+      }
+      
+      if (analyser) {
+        analyser.disconnect();
+        analyser = null;
+      }
+      
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+      }
+      
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+      
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+      
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      
+      bars.forEach(bar => bar.style.height = '5px');
+    }
+    
+    // Load external script
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+    
+    // Event listeners
+    startBtn.addEventListener('click', startListening);
+    stopBtn.addEventListener('click', stopListening);
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+  </script>
+</body>
+</html>

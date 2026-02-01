@@ -77,14 +77,12 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
   private maxReconnectAttempts: number = 3;
   private accumulatedTranscript: string = '';
   private detectedEvents: string[] = [];
-  private token: string | null = null;
   private shouldReconnect: boolean = true; // H3 FIX: Control reconnection behavior
   private totalReconnects: number = 0; // H3 FIX: Track total reconnects to prevent infinite loops
 
-  // WebSocket URL for ElevenLabs Scribe Realtime
-  // Ref: https://elevenlabs.io/docs/cookbooks/speech-to-text/streaming
+  // WebSocket URL for ElevenLabs Scribe v2 Realtime
+  // Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
   private readonly WS_URL = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
-  private readonly TOKEN_URL = 'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe';
 
   constructor(config: RealtimeConfig) {
     super();
@@ -99,29 +97,12 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
   }
 
   /**
-   * Get a single-use token for WebSocket authentication
-   * Ref: https://elevenlabs.io/docs/cookbooks/speech-to-text/streaming#create-a-token
-   */
-  private async getToken(): Promise<string> {
-    const response = await fetch(this.TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'xi-api-key': this.config.apiKey,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to get realtime token: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json() as { token: string };
-    return data.token;
-  }
-
-  /**
    * Connect to ElevenLabs Realtime WebSocket
+   * Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
+   * 
+   * Authentication options:
+   * - Server-side: Use xi-api-key header
+   * - Client-side: Use token query parameter (from /v1/tokens/create)
    */
   async connect(): Promise<void> {
     if (this.isConnected) {
@@ -130,19 +111,18 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
     }
 
     try {
-      // Step 1: Get single-use token
-      console.log('🔑 Getting ElevenLabs realtime token...');
-      this.token = await this.getToken();
-      console.log('✅ Got token');
+      console.log('🔌 Connecting to ElevenLabs Scribe v2 Realtime...');
 
       return new Promise((resolve, reject) => {
         try {
-          // Step 2: Build WebSocket URL with query params
-          // Ref: https://elevenlabs.io/docs/cookbooks/speech-to-text/streaming#query-parameters
+          // Build WebSocket URL with query params
+          // Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
           const url = new URL(this.WS_URL);
-          url.searchParams.set('model_id', 'scribe_v2_realtime');
-          url.searchParams.set('token', this.token!);
           
+          // Required: model_id
+          url.searchParams.set('model_id', 'scribe_v2_realtime');
+          
+          // Optional parameters per documentation
           if (this.config.languageCode) {
             url.searchParams.set('language_code', this.config.languageCode);
           }
@@ -156,8 +136,12 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
             url.searchParams.set('include_timestamps', 'true');
           }
 
-          // Step 3: Connect to WebSocket
-          this.ws = new WebSocket(url.toString());
+          // Connect to WebSocket with API key in header (server-side auth)
+          this.ws = new WebSocket(url.toString(), {
+            headers: {
+              'xi-api-key': this.config.apiKey,
+            },
+          });
 
           this.ws.on('open', () => {
             console.log('🔌 Connected to ElevenLabs Realtime WebSocket');
@@ -228,8 +212,8 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
    * Send audio data to ElevenLabs for real-time transcription
    * @param audioData - Raw PCM audio data (16-bit signed, mono)
    * 
-   * Ref: https://elevenlabs.io/docs/cookbooks/speech-to-text/streaming#manual-commit
-   * Audio should be sent as base64-encoded chunks with sample_rate
+   * Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
+   * Message format: { message_type: "input_audio_chunk", audio_base_64: string, sample_rate: number }
    */
   sendAudio(audioData: Buffer | ArrayBuffer): void {
     if (!this.isConnected || !this.ws) {
@@ -261,12 +245,14 @@ export class ElevenLabsRealtimeClient extends EventEmitter {
 
   /**
    * Commit the current transcript segment (for manual commit strategy)
+   * Ref: https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime
    */
   commit(): void {
     if (!this.isConnected || !this.ws) return;
 
     try {
-      this.ws.send(JSON.stringify({ type: 'commit' }));
+      // ElevenLabs uses message_type, not type
+      this.ws.send(JSON.stringify({ message_type: 'commit' }));
     } catch (error) {
       console.error('Error sending commit:', error);
     }

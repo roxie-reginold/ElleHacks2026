@@ -1,10 +1,9 @@
 import { Router, Request, Response } from 'express';
-import ContextClue, { seedContextClues } from '../models/ContextClue';
+import ContextClue from '../models/ContextClue';
 
 const router = Router();
 
-// Seed context clues on startup
-seedContextClues().catch(console.error);
+// Note: Seeding is now done in index.ts after MongoDB connects
 
 /**
  * GET /api/context-clues
