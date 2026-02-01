@@ -17,23 +17,6 @@ import { cn } from "@/lib/utils"
 import { incrementFocusMoments } from "@/services/api"
 import type { ContextLabel } from "@/types/breathing"
 
-const sampleWeeklyStats = {
-  moodData: [
-    { day: "Mon", mood: 4 },
-    { day: "Tue", mood: 5 },
-    { day: "Wed", mood: 3 },
-    { day: "Thu", mood: 4 },
-    { day: "Fri", mood: 4 },
-    { day: "Sat", mood: 5 },
-    { day: "Sun", mood: 4 },
-  ],
-  breathingBreaks: 12,
-  winsLogged: 8,
-  signalsSent: 3,
-  topMood: "Good",
-  insight: "You're calmer on Tuesdays. Group work days seem to go better when you use your breathing exercises first.",
-}
-
 export default function App() {
   const { user, updatePreferences } = useUser()
   const navigate = useNavigate()
@@ -407,7 +390,7 @@ export default function App() {
         )}
 
         {activeTab === "insights" && (
-          <WeeklyDashboard stats={sampleWeeklyStats} />
+          <WeeklyDashboard />
         )}
 
         {activeTab === "courage" && (

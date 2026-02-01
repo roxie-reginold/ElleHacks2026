@@ -2,19 +2,23 @@
 
 import { Wind, Trophy, Heart, Sparkles, TrendingUp, Calendar } from "lucide-react"
 
-interface WeeklyStats {
-  moodData: { day: string; mood: number }[]
-  breathingBreaks: number
-  winsLogged: number
-  signalsSent: number
-  topMood: string
-  insight: string
-}
-
-interface WeeklyDashboardProps {
-  stats: WeeklyStats
-  period?: { start: string; end: string }
-}
+/** Hardcoded values for the Insights / Your Week view */
+const DEFAULT_STATS = {
+  moodData: [
+    { day: "Mon", mood: 4 },
+    { day: "Tue", mood: 5 },
+    { day: "Wed", mood: 3 },
+    { day: "Thu", mood: 4 },
+    { day: "Fri", mood: 4 },
+    { day: "Sat", mood: 5 },
+    { day: "Sun", mood: 4 },
+  ],
+  breathingBreaks: 12,
+  winsLogged: 8,
+  signalsSent: 3,
+  topMood: "Good",
+  insight: "You're calmer on Tuesdays. Group work days seem to go better when you use your breathing exercises first.",
+} as const
 
 const moodEmojis: Record<number, string> = {
   1: "\u{1F622}",
@@ -24,27 +28,17 @@ const moodEmojis: Record<number, string> = {
   5: "\u{1F929}",
 }
 
-function formatPeriod(start: string, end: string): string {
-  try {
-    const s = new Date(start)
-    const e = new Date(end)
-    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" }
-    return `${s.toLocaleDateString(undefined, opts)} – ${e.toLocaleDateString(undefined, opts)}`
-  } catch {
-    return ""
-  }
-}
-
-export function WeeklyDashboard({ stats, period }: WeeklyDashboardProps) {
+export function WeeklyDashboard() {
+  const stats = DEFAULT_STATS
   const maxMood = 5
-  const periodLabel = period ? formatPeriod(period.start, period.end) : "This week"
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-foreground">Your Week</h2>
-          <p className="text-sm text-muted-foreground">{periodLabel || "This week"}</p>
+          <p className="text-sm text-muted-foreground">Jan 27 - Feb 2</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4" />
@@ -52,6 +46,7 @@ export function WeeklyDashboard({ stats, period }: WeeklyDashboardProps) {
         </div>
       </div>
 
+      {/* Top Row - AI Insight + Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-2xl border border-primary/20 bg-primary/5 p-5">
           <div className="flex items-start gap-4">
@@ -71,17 +66,16 @@ export function WeeklyDashboard({ stats, period }: WeeklyDashboardProps) {
 
         <div className="rounded-2xl border border-border bg-card p-5">
           <div className="flex items-center gap-4">
-            <span className="text-4xl">{topMoodEmoji[stats.topMood] ?? moodEmojis[3]}</span>
+            <span className="text-4xl">{moodEmojis[4]}</span>
             <div>
               <p className="font-medium text-foreground">Most common: {stats.topMood}</p>
-              <p className="text-sm text-muted-foreground">
-                {stats.topMood !== "—" ? "Based on your check-ins this week" : "Log your mood to see patterns"}
-              </p>
+              <p className="text-sm text-muted-foreground">You felt good most days</p>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Middle Row - Mood Timeline + Stats Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
@@ -148,6 +142,7 @@ export function WeeklyDashboard({ stats, period }: WeeklyDashboardProps) {
         </div>
       </div>
 
+      {/* Bottom Row - Kind Words */}
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-col lg:flex-row lg:items-start gap-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gentle/10">
